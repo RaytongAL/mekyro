@@ -1,0 +1,31 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Python and test caches
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.ruff_cache/
+**/.coverage
+**/htmlcov/
+
+# Frontend dependencies and builds
+**/node_modules/
+**/dist/
+**/build/
+**/.next/
+**/*.tsbuildinfo
+**/.playwright-cli/
+**/output/
+**/artifacts/
+
+# Local runtime data
+**/data/*.db
+**/data/*.db-*
+**/data/uploads/
+**/var/
+*.log

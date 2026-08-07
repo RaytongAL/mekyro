@@ -1,0 +1,38 @@
+{
+  "ai": {
+    "zh-CN": "AI",
+    "en-US": "AI"
+  },
+  "agent": {
+    "zh-CN": "Agent",
+    "en-US": "Agent"
+  },
+  "customerAgent": {
+    "zh-CN": "Customer Agent",
+    "en-US": "Customer Agent"
+  },
+  "skill": {
+    "zh-CN": "Skill",
+    "en-US": "Skill"
+  },
+  "token": {
+    "zh-CN": "Token",
+    "en-US": "Token"
+  },
+  "email": {
+    "zh-CN": "Email",
+    "en-US": "Email"
+  },
+  "whatsapp": {
+    "zh-CN": "WhatsApp",
+    "en-US": "WhatsApp"
+  },
+  "api": {
+    "zh-CN": "API",
+    "en-US": "API"
+  },
+  "vm": {
+    "zh-CN": "VM",
+    "en-US": "VM"
+  }
+}

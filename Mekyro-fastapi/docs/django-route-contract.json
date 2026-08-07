@@ -1,0 +1,382 @@
+{
+  "schema_version": 1,
+  "django_named_route_count": 124,
+  "django_named_route_operation_count": 131,
+  "django_source_files": [
+    "user/urls.py",
+    "workspace/urls.py",
+    "apikey/urls.py",
+    "shopify/urls.py",
+    "lead/management_urls.py",
+    "inquiry/management_urls.py",
+    "product/management_urls.py",
+    "lead/urls.py",
+    "inquiry/urls.py",
+    "product/urls.py",
+    "agent/urls.py",
+    "lead/supplier_urls.py",
+    "product/supplier_urls.py"
+  ],
+  "mappings": [
+    {
+      "feature": "password-login",
+      "django_routes": ["user_login", "vendor_login"],
+      "fastapi": [["POST", "/api/v1/auth/login"]],
+      "tests": ["test_login_and_current_user", "test_password_login_supports_phone_and_vendor_boundary", "test_platform_admin_registers_supplier_that_can_login"]
+    },
+    {
+      "feature": "current-user",
+      "django_routes": ["user_info"],
+      "fastapi": [["GET", "/api/v1/auth/me"]],
+      "tests": ["test_login_and_current_user"]
+    },
+    {
+      "feature": "user-language",
+      "django_routes": ["user_language"],
+      "fastapi": [["PUT", "/api/v1/auth/me/language"]],
+      "tests": ["test_user_language_profile_and_workspace_prompt_are_audited"]
+    },
+    {
+      "feature": "sms-challenge",
+      "django_routes": ["sms_send_code"],
+      "fastapi": [["POST", "/api/v1/auth/challenges"]],
+      "tests": ["test_sms_challenge_requires_captcha_and_supports_vendor_login"]
+    },
+    {
+      "feature": "sms-login",
+      "django_routes": ["sms_login", "sms_vendor_login"],
+      "fastapi": [["POST", "/api/v1/auth/challenges/login"]],
+      "tests": ["test_sms_challenge_requires_captcha_and_supports_vendor_login", "test_vendor_challenge_login_rejects_user_without_workspace"]
+    },
+    {
+      "feature": "email-challenge",
+      "django_routes": ["email_send_code"],
+      "fastapi": [["POST", "/api/v1/auth/challenges"]],
+      "tests": ["test_challenge_issue_interval_and_attempt_lockout", "test_challenge_target_daily_limit_and_expiry"]
+    },
+    {
+      "feature": "email-login",
+      "django_routes": ["email_login", "email_vendor_login"],
+      "fastapi": [["POST", "/api/v1/auth/challenges/login"]],
+      "tests": ["test_email_challenge_login_is_hashed_one_time_and_issues_jwt", "test_vendor_challenge_login_rejects_user_without_workspace"]
+    },
+    {
+      "feature": "workspace-list",
+      "django_routes": ["workspace_list"],
+      "fastapi": [["GET", "/api/v1/workspaces"]],
+      "tests": ["test_supplier_only_lists_own_workspace", "test_platform_admin_lists_all_workspaces"]
+    },
+    {
+      "feature": "supplier-provisioning",
+      "django_routes": ["supplier_account_create"],
+      "fastapi": [["POST", "/api/v1/workspaces"]],
+      "tests": ["test_platform_admin_registers_supplier_that_can_login"]
+    },
+    {
+      "feature": "supplier-account-lifecycle",
+      "django_routes": ["supplier_account_detail", "supplier_account_update", "supplier_account_delete"],
+      "fastapi": [
+        ["GET", "/api/v1/workspaces/{workspace_id}/supplier-account"],
+        ["PATCH", "/api/v1/workspaces/{workspace_id}/supplier-account"],
+        ["DELETE", "/api/v1/workspaces/{workspace_id}/supplier-account"]
+      ],
+      "tests": ["test_platform_supplier_account_detail_update_deactivate_reactivate_and_hard_delete"]
+    },
+    {
+      "feature": "api-key-workspace-prompt",
+      "django_routes": ["workspace_prompt"],
+      "fastapi": [["GET", "/api/v1/external/workspace/prompt"]],
+      "tests": ["test_api_key_reads_workspace_prompt_from_its_immutable_tenant_scope"]
+    },
+    {
+      "feature": "api-key-lifecycle",
+      "django_routes": ["apikey_list", "apikey_create", "apikey_status", "apikey_update", "apikey_delete"],
+      "fastapi": [
+        ["GET", "/api/v1/internal/api-keys"],
+        ["POST", "/api/v1/internal/api-keys"],
+        ["PATCH", "/api/v1/internal/api-keys/{api_key_id}/status"],
+        ["PATCH", "/api/v1/internal/api-keys/{api_key_id}"],
+        ["DELETE", "/api/v1/internal/api-keys/{api_key_id}"]
+      ],
+      "tests": ["test_api_key_lifecycle_reveals_secret_once_and_requires_disable_before_revoke", "test_api_key_admin_update_and_non_admin_protection"]
+    },
+    {
+      "feature": "platform-shopify-config-lifecycle",
+      "django_routes": ["shopify_config_list", "shopify_config_create", "shopify_config_update", "shopify_config_status", "shopify_config_delete"],
+      "fastapi": [
+        ["GET", "/api/v1/internal/shopify-configs"],
+        ["POST", "/api/v1/internal/shopify-configs"],
+        ["PATCH", "/api/v1/internal/shopify-configs/{config_id}"],
+        ["PATCH", "/api/v1/internal/shopify-configs/{config_id}/status"],
+        ["DELETE", "/api/v1/internal/shopify-configs/{config_id}"]
+      ],
+      "tests": ["test_shopify_config_lifecycle_encrypts_and_redacts_credentials"]
+    },
+    {
+      "feature": "platform-lead-read",
+      "django_routes": ["internal_lead_list", "internal_lead_detail"],
+      "fastapi": [["GET", "/api/v1/internal/leads"], ["GET", "/api/v1/internal/leads/{lead_id}"]],
+      "tests": ["test_platform_operator_cross_workspace_read_models_and_dashboard"]
+    },
+    {
+      "feature": "platform-lead-write",
+      "django_routes": ["internal_lead_update", "internal_lead_delete"],
+      "fastapi": [["PATCH", "/api/v1/workspaces/{workspace_id}/leads/{lead_id}"], ["DELETE", "/api/v1/workspaces/{workspace_id}/leads/{lead_id}"]],
+      "tests": ["test_platform_operator_uses_workspace_commands_for_audited_writes", "test_lead_batch_full_update_and_delete_preserves_order"]
+    },
+    {
+      "feature": "platform-contact-log-read",
+      "django_routes": ["internal_contact_log_list", "internal_contact_log_detail"],
+      "fastapi": [["GET", "/api/v1/internal/contact-logs"], ["GET", "/api/v1/internal/contact-logs/{activity_id}"]],
+      "tests": ["test_platform_operator_cross_workspace_read_models_and_dashboard"]
+    },
+    {
+      "feature": "platform-contact-log-write",
+      "django_routes": ["internal_contact_log_update", "internal_contact_log_delete"],
+      "fastapi": [["PATCH", "/api/v1/workspaces/{workspace_id}/activities/{activity_id}"], ["DELETE", "/api/v1/workspaces/{workspace_id}/activities/{activity_id}"]],
+      "tests": ["test_contact_activity_batch_search_update_and_delete"]
+    },
+    {
+      "feature": "supplier-inquiry-management",
+      "django_routes": ["internal_supplier_inquiry_list", "internal_supplier_inquiry_detail", "internal_supplier_inquiry_update", "internal_supplier_inquiry_delete"],
+      "fastapi": [
+        ["GET", "/api/v1/inquiries/suppliers"],
+        ["GET", "/api/v1/inquiries/suppliers/{inquiry_id}"],
+        ["PATCH", "/api/v1/inquiries/suppliers/{inquiry_id}"],
+        ["DELETE", "/api/v1/inquiries/suppliers/{inquiry_id}"]
+      ],
+      "tests": ["test_public_inquiry_submission_and_operator_management"]
+    },
+    {
+      "feature": "buyer-inquiry-management",
+      "django_routes": ["internal_buyer_inquiry_list", "internal_buyer_inquiry_detail", "internal_buyer_inquiry_update", "internal_buyer_inquiry_delete"],
+      "fastapi": [
+        ["GET", "/api/v1/inquiries/buyers"],
+        ["GET", "/api/v1/inquiries/buyers/{inquiry_id}"],
+        ["PATCH", "/api/v1/inquiries/buyers/{inquiry_id}"],
+        ["DELETE", "/api/v1/inquiries/buyers/{inquiry_id}"]
+      ],
+      "tests": ["test_public_inquiry_submission_and_operator_management"]
+    },
+    {
+      "feature": "platform-product-read",
+      "django_routes": ["internal_product_list", "internal_product_detail"],
+      "fastapi": [["GET", "/api/v1/internal/products"], ["GET", "/api/v1/internal/products/{product_id}"]],
+      "tests": ["test_platform_operator_cross_workspace_read_models_and_dashboard"]
+    },
+    {
+      "feature": "platform-product-write-and-trash",
+      "django_routes": ["internal_product_create", "internal_product_update", "internal_product_delete", "internal_product_trash_list", "internal_product_restore"],
+      "fastapi": [
+        ["POST", "/api/v1/workspaces/{workspace_id}/products"],
+        ["PATCH", "/api/v1/workspaces/{workspace_id}/products/{product_id}"],
+        ["DELETE", "/api/v1/workspaces/{workspace_id}/products/{product_id}"],
+        ["GET", "/api/v1/internal/products/trash"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/products/{product_id}/restore"]
+      ],
+      "tests": ["test_product_and_variant_write_workflow_is_atomic_and_audited", "test_product_and_variant_recycle_bin_lifecycle", "test_platform_cross_workspace_categories_specifications_and_trash"]
+    },
+    {
+      "feature": "platform-sku-write-inventory-and-trash",
+      "django_routes": ["internal_sku_create", "internal_sku_update", "internal_sku_delete", "internal_sku_inventory_log_create", "internal_sku_trash_list", "internal_sku_restore"],
+      "fastapi": [
+        ["POST", "/api/v1/workspaces/{workspace_id}/products/{product_id}/variants"],
+        ["PATCH", "/api/v1/workspaces/{workspace_id}/variants/{variant_id}"],
+        ["DELETE", "/api/v1/workspaces/{workspace_id}/variants/{variant_id}"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/inventory-adjustments"],
+        ["GET", "/api/v1/internal/variants/trash"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/variants/{variant_id}/restore"]
+      ],
+      "tests": ["test_product_and_variant_write_workflow_is_atomic_and_audited", "test_product_and_variant_recycle_bin_lifecycle", "test_inventory_adjustment_is_idempotent_and_audited", "test_platform_cross_workspace_categories_specifications_and_trash"]
+    },
+    {
+      "feature": "platform-category-lifecycle",
+      "django_routes": ["internal_category_list", "internal_category_create", "internal_category_update", "internal_category_delete"],
+      "fastapi": [
+        ["GET", "/api/v1/internal/categories"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/categories"],
+        ["PATCH", "/api/v1/workspaces/{workspace_id}/categories/{category_id}"],
+        ["DELETE", "/api/v1/workspaces/{workspace_id}/categories/{category_id}"]
+      ],
+      "tests": ["test_category_crud_enforces_hierarchy_and_tenant_scope", "test_category_depth_and_delete_subtree_behavior", "test_platform_cross_workspace_categories_specifications_and_trash"]
+    },
+    {
+      "feature": "platform-inventory-spec-and-dashboard",
+      "django_routes": ["internal_inventory_log_list", "internal_sku_spec_options", "internal_dashboard_stats"],
+      "fastapi": [
+        ["GET", "/api/v1/internal/inventory-movements"],
+        ["GET", "/api/v1/internal/specification-options"],
+        ["GET", "/api/v1/internal/dashboard/stats"]
+      ],
+      "tests": ["test_platform_operator_cross_workspace_read_models_and_dashboard", "test_specification_options_are_aggregated_per_workspace", "test_platform_cross_workspace_categories_specifications_and_trash"]
+    },
+    {
+      "feature": "platform-upload-import-and-images",
+      "django_routes": ["internal_upload", "internal_product_import", "internal_product_images", "internal_product_image_delete"],
+      "fastapi": [
+        ["POST", "/api/v1/workspaces/{workspace_id}/uploads"],
+        ["GET", "/api/v1/workspaces/{workspace_id}/product-import/template"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/product-import/preview"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/product-import/confirm"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/products/{product_id}/images"],
+        ["DELETE", "/api/v1/workspaces/{workspace_id}/products/{product_id}/images/{image_id}"]
+      ],
+      "tests": ["test_catalog_upload_and_product_image_lifecycle", "test_product_import_template_preview_and_confirm"]
+    },
+    {
+      "feature": "external-lead-lifecycle",
+      "django_routes": ["lead_list", "lead_create", "lead_batch_create", "lead_update", "lead_detail", "lead_delete"],
+      "fastapi": [
+        ["GET", "/api/v1/external/leads"],
+        ["POST", "/api/v1/external/leads"],
+        ["POST", "/api/v1/external/leads/batch"],
+        ["GET", "/api/v1/external/leads/{lead_id}"],
+        ["PATCH", "/api/v1/external/leads/{lead_id}"],
+        ["DELETE", "/api/v1/external/leads/{lead_id}"]
+      ],
+      "tests": ["test_external_api_key_crm_full_lifecycle_and_batches", "test_api_key_permission_enforced_and_scoped_write_audited"]
+    },
+    {
+      "feature": "external-contact-log-lifecycle",
+      "django_routes": ["contact_log_list", "contact_log_create", "contact_log_batch_create", "contact_log_update", "contact_log_detail", "contact_log_delete"],
+      "fastapi": [
+        ["GET", "/api/v1/external/leads/{lead_id}/contact-logs"],
+        ["POST", "/api/v1/external/leads/{lead_id}/contact-logs"],
+        ["POST", "/api/v1/external/leads/{lead_id}/contact-logs/batch"],
+        ["GET", "/api/v1/external/contact-logs/{activity_id}"],
+        ["PATCH", "/api/v1/external/contact-logs/{activity_id}"],
+        ["DELETE", "/api/v1/external/contact-logs/{activity_id}"]
+      ],
+      "tests": ["test_external_api_key_crm_full_lifecycle_and_batches", "test_api_key_permission_enforced_and_scoped_write_audited"]
+    },
+    {
+      "feature": "public-inquiry-submission",
+      "django_routes": ["supplier_inquiry_create", "buyer_inquiry_create"],
+      "fastapi": [["POST", "/api/v1/inquiries/suppliers"], ["POST", "/api/v1/inquiries/buyers"]],
+      "tests": ["test_public_inquiry_submission_and_operator_management", "test_public_inquiry_validation_rejects_invalid_contact_data"]
+    },
+    {
+      "feature": "external-category-lifecycle",
+      "django_routes": ["product_category_list", "product_category_create", "product_category_detail"],
+      "fastapi": [
+        ["GET", "/api/v1/external/categories"],
+        ["POST", "/api/v1/external/categories"],
+        ["GET", "/api/v1/external/categories/{category_id}"],
+        ["PATCH", "/api/v1/external/categories/{category_id}"],
+        ["DELETE", "/api/v1/external/categories/{category_id}"]
+      ],
+      "tests": ["test_external_api_key_catalog_variant_price_and_inventory_batches"]
+    },
+    {
+      "feature": "external-product-lifecycle",
+      "django_routes": ["product_list", "product_create", "product_detail"],
+      "fastapi": [
+        ["GET", "/api/v1/external/products"],
+        ["POST", "/api/v1/external/products"],
+        ["GET", "/api/v1/external/products/{product_id}"],
+        ["PATCH", "/api/v1/external/products/{product_id}"],
+        ["DELETE", "/api/v1/external/products/{product_id}"]
+      ],
+      "tests": ["test_api_key_auth_permission_tenant_scope_and_last_used", "test_api_key_catalog_and_inventory_commands_use_key_workspace", "test_external_api_key_catalog_variant_price_and_inventory_batches"]
+    },
+    {
+      "feature": "external-sku-price-and-inventory",
+      "django_routes": ["sku_batch_update", "price_tier_batch_replace", "sku_create", "sku_detail", "price_tier_replace", "inventory_log_cross_sku_batch_create", "inventory_log_list", "inventory_log_create", "inventory_log_batch_create"],
+      "fastapi": [
+        ["POST", "/api/v1/external/products/{product_id}/variants"],
+        ["GET", "/api/v1/external/variants"],
+        ["GET", "/api/v1/external/variants/{variant_id}"],
+        ["PATCH", "/api/v1/external/variants/{variant_id}"],
+        ["DELETE", "/api/v1/external/variants/{variant_id}"],
+        ["PUT", "/api/v1/external/variants/{variant_id}/price-tiers"],
+        ["PATCH", "/api/v1/external/batch/variants"],
+        ["PUT", "/api/v1/external/batch/price-tiers"],
+        ["GET", "/api/v1/external/inventory-movements"],
+        ["POST", "/api/v1/external/inventory-adjustments"],
+        ["POST", "/api/v1/external/batch/inventory-adjustments"]
+      ],
+      "tests": ["test_api_key_catalog_and_inventory_commands_use_key_workspace", "test_external_api_key_catalog_variant_price_and_inventory_batches"]
+    },
+    {
+      "feature": "supplier-agent-chat",
+      "django_routes": ["agent-chat"],
+      "fastapi": [["POST", "/api/v1/workspaces/{workspace_id}/agent/chat"]],
+      "tests": ["test_agent_authenticated_sse_chat_persists_and_resumes_conversation"]
+    },
+    {
+      "feature": "supplier-crm-read-models",
+      "django_routes": ["supplier_home_stats", "supplier_lead_list", "supplier_lead_detail", "supplier_lead_contact_logs", "supplier_contact_log_list"],
+      "fastapi": [
+        ["GET", "/api/v1/workspaces/{workspace_id}/dashboard"],
+        ["GET", "/api/v1/workspaces/{workspace_id}/leads"],
+        ["GET", "/api/v1/workspaces/{workspace_id}/leads/{lead_id}"],
+        ["GET", "/api/v1/workspaces/{workspace_id}/leads/{lead_id}/activities"],
+        ["GET", "/api/v1/workspaces/{workspace_id}/activities"]
+      ],
+      "tests": ["test_filtered_leads_and_activities", "test_dashboard_uses_real_fake_database_aggregates"]
+    },
+    {
+      "feature": "supplier-product-lifecycle",
+      "django_routes": ["supplier_product_list", "supplier_product_detail", "supplier_product_update", "supplier_product_delete", "supplier_product_trash_list", "supplier_product_restore"],
+      "fastapi": [
+        ["GET", "/api/v1/workspaces/{workspace_id}/products"],
+        ["GET", "/api/v1/workspaces/{workspace_id}/products/{product_id}"],
+        ["PATCH", "/api/v1/workspaces/{workspace_id}/products/{product_id}"],
+        ["DELETE", "/api/v1/workspaces/{workspace_id}/products/{product_id}"],
+        ["GET", "/api/v1/workspaces/{workspace_id}/products/trash"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/products/{product_id}/restore"]
+      ],
+      "tests": ["test_product_and_variant_write_workflow_is_atomic_and_audited", "test_product_and_variant_recycle_bin_lifecycle"]
+    },
+    {
+      "feature": "supplier-sku-lifecycle",
+      "django_routes": ["supplier_sku_update", "supplier_sku_delete", "supplier_sku_trash_list", "supplier_sku_restore"],
+      "fastapi": [
+        ["PATCH", "/api/v1/workspaces/{workspace_id}/variants/{variant_id}"],
+        ["DELETE", "/api/v1/workspaces/{workspace_id}/variants/{variant_id}"],
+        ["GET", "/api/v1/workspaces/{workspace_id}/variants/trash"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/variants/{variant_id}/restore"]
+      ],
+      "tests": ["test_product_and_variant_write_workflow_is_atomic_and_audited", "test_product_and_variant_recycle_bin_lifecycle"]
+    },
+    {
+      "feature": "supplier-catalog-read-and-import",
+      "django_routes": ["supplier_category_list", "supplier_inventory_log_list", "supplier_product_import"],
+      "fastapi": [
+        ["GET", "/api/v1/workspaces/{workspace_id}/categories"],
+        ["GET", "/api/v1/workspaces/{workspace_id}/inventory-movements"],
+        ["GET", "/api/v1/workspaces/{workspace_id}/product-import/template"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/product-import/preview"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/product-import/confirm"]
+      ],
+      "tests": ["test_category_crud_enforces_hierarchy_and_tenant_scope", "test_inventory_movements_are_tenant_scoped", "test_product_import_template_preview_and_confirm"]
+    },
+    {
+      "feature": "supplier-catalog-extended-write",
+      "django_routes": ["supplier_product_create", "supplier_product_images", "supplier_product_image_delete", "supplier_sku_create", "supplier_sku_inventory_log_create", "supplier_upload", "supplier_category_create", "supplier_category_update", "supplier_category_delete"],
+      "fastapi": [
+        ["POST", "/api/v1/workspaces/{workspace_id}/products"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/products/{product_id}/images"],
+        ["DELETE", "/api/v1/workspaces/{workspace_id}/products/{product_id}/images/{image_id}"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/products/{product_id}/variants"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/inventory-adjustments"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/uploads"],
+        ["POST", "/api/v1/workspaces/{workspace_id}/categories"],
+        ["PATCH", "/api/v1/workspaces/{workspace_id}/categories/{category_id}"],
+        ["DELETE", "/api/v1/workspaces/{workspace_id}/categories/{category_id}"]
+      ],
+      "tests": ["test_product_and_variant_write_workflow_is_atomic_and_audited", "test_catalog_upload_and_product_image_lifecycle", "test_inventory_adjustment_is_idempotent_and_audited", "test_category_crud_enforces_hierarchy_and_tenant_scope", "test_category_depth_and_delete_subtree_behavior"]
+    },
+    {
+      "feature": "supplier-profile-and-shopify",
+      "django_routes": ["supplier_profile"],
+      "fastapi": [
+        ["GET", "/api/v1/workspaces/{workspace_id}"],
+        ["PATCH", "/api/v1/workspaces/{workspace_id}"],
+        ["GET", "/api/v1/workspaces/{workspace_id}/shopify/config"],
+        ["PUT", "/api/v1/workspaces/{workspace_id}/shopify/config"]
+      ],
+      "tests": ["test_supplier_profile_migrates_legacy_requirement_and_protects_active_execution", "test_supplier_profile_requirement_change_invalidates_pending_lead_card", "test_supplier_can_manage_own_shopify_profile_with_encrypted_credentials"]
+    }
+  ]
+}

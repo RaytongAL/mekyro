@@ -1,0 +1,1 @@
+"""Mekyro FastAPI application."""

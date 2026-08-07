@@ -1,0 +1,67 @@
+name: mekyro-local
+
+services:
+  postgres:
+    image: docker.m.daocloud.io/library/postgres:16-alpine
+    environment:
+      POSTGRES_DB: mekyro
+      POSTGRES_USER: mekyro
+      POSTGRES_PASSWORD: mekyro_local
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - mekyro_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mekyro -d mekyro"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ./Mekyro-fastapi
+    environment:
+      MEKYRO_ENVIRONMENT: local
+      MEKYRO_DATABASE_URL: postgresql+asyncpg://mekyro:mekyro_local@postgres:5432/mekyro
+      MEKYRO_JWT_SECRET: local-only-jwt-secret-change-before-deployment-2026
+      MEKYRO_CREDENTIAL_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      MEKYRO_AUTO_CREATE_SCHEMA: "false"
+      MEKYRO_AUTO_SEED: "false"
+      MEKYRO_CHALLENGE_DEBUG_CODES: "true"
+      MEKYRO_CHALLENGE_GATEWAY_MODE: development
+      MEKYRO_UPLOAD_DIRECTORY: /app/data/uploads
+    command: >-
+      sh -c "alembic upgrade head &&
+      python -m app.scripts.seed_fake_db --skip-schema &&
+      exec uvicorn app.main:app --host 0.0.0.0 --port 8200"
+    ports:
+      - "127.0.0.1:8200:8200"
+    volumes:
+      - mekyro_uploads:/app/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8200/api/v1/health')",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  frontend:
+    build:
+      context: ./Mekyro-main/frontend
+    ports:
+      - "127.0.0.1:3100:3100"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  mekyro_postgres_data:
+  mekyro_uploads:
