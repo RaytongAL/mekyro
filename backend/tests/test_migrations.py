@@ -1,19 +1,20 @@
 import os
 import sqlite3
 import subprocess
+import sys
 from pathlib import Path
 
 from app.core.models import Base
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-ALEMBIC = PROJECT_ROOT / ".venv" / "bin" / "alembic"
+ALEMBIC = [sys.executable, "-m", "alembic"]
 
 
 def _run_alembic(database_path: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
     environment["MEKYRO_DATABASE_URL"] = f"sqlite+aiosqlite:///{database_path}"
     return subprocess.run(
-        [str(ALEMBIC), *arguments],
+        [*ALEMBIC, *arguments],
         cwd=PROJECT_ROOT,
         env=environment,
         check=True,

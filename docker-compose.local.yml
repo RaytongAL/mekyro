@@ -19,7 +19,7 @@ services:
 
   backend:
     build:
-      context: ./Mekyro-fastapi
+      context: ./backend
     environment:
       MEKYRO_ENVIRONMENT: local
       MEKYRO_DATABASE_URL: postgresql+asyncpg://mekyro:mekyro_local@postgres:5432/mekyro
@@ -55,7 +55,7 @@ services:
 
   frontend:
     build:
-      context: ./Mekyro-main/frontend
+      context: ./frontend
     ports:
       - "127.0.0.1:3100:3100"
     depends_on:

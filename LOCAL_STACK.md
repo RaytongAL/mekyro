@@ -6,7 +6,6 @@
 ## 启动
 
 ```bash
-cd /Users/ray/Downloads/海外电商
 docker compose -f docker-compose.local.yml up -d --build
 ```
 

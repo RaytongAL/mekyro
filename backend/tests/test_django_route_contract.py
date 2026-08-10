@@ -1,5 +1,6 @@
 import ast
 import json
+import os
 import re
 from collections import Counter
 from pathlib import Path
@@ -13,8 +14,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_PATH = PROJECT_ROOT / "docs" / "django-route-contract.json"
 PARITY_PATH = PROJECT_ROOT / "docs" / "django-feature-parity.md"
 REGISTRY_PATH = PROJECT_ROOT / "docs" / "feature-test-registry.md"
-DJANGO_APPS_ROOT = PROJECT_ROOT.parent / "Mekyro-main" / "backend" / "apps"
-DJANGO_CONFIG_URLS = PROJECT_ROOT.parent / "Mekyro-main" / "backend" / "config" / "urls.py"
+LEGACY_DJANGO_BACKEND = Path(
+    os.environ.get(
+        "MEKYRO_DJANGO_REFERENCE_ROOT",
+        PROJECT_ROOT.parent.parent / "Mekyro-main" / "backend",
+    )
+)
+DJANGO_APPS_ROOT = LEGACY_DJANGO_BACKEND / "apps"
+DJANGO_CONFIG_URLS = LEGACY_DJANGO_BACKEND / "config" / "urls.py"
 HTTP_HANDLER_METHODS = {"get", "post", "put", "patch", "delete"}
 
 

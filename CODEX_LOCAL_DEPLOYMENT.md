@@ -5,7 +5,7 @@
 请在本目录启动一套完全独立的 Mekyro 本地测试环境，包含：
 
 - React 前端
-- FastAPI 后端（`Mekyro-fastapi`）
+- FastAPI 后端（`backend`）
 - PostgreSQL 16
 
 本地环境使用脱敏测试数据。不要导入 `mekyro.sql`，不要连接生产数据库，也不要使用生产账号、API Key、Shopify 凭证或客户数据。

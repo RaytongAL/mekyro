@@ -1,11 +1,11 @@
-# Mekyro 本地测试栈
+# Mekyro
 
 本仓库包含当前可运行的 React 前端、FastAPI 后端和 PostgreSQL 本地测试环境。
 
 ## 目录
 
-- `Mekyro-main/frontend`：React + Vite 前端
-- `Mekyro-fastapi`：FastAPI 后端、Alembic 迁移和脱敏 fake seed
+- `frontend`：React + Vite 前端
+- `backend`：FastAPI 后端、Alembic 迁移和脱敏 fake seed
 - `docker-compose.local.yml`：本地 PostgreSQL、后端和前端编排
 - `CODEX_LOCAL_DEPLOYMENT.md`：完整的本地部署、测试账号和故障处理说明
 
@@ -26,14 +26,28 @@ docker compose -f docker-compose.local.yml up -d --build
 后端测试：
 
 ```bash
-cd Mekyro-fastapi
+cd backend
 pytest
 ```
 
 前端构建：
 
 ```bash
-cd Mekyro-main/frontend
+cd frontend
 npm ci
 npm run build
+```
+
+## 开发约定
+
+本仓库是前端、后端、数据库迁移和部署配置的唯一正式工作目录。不要再从旧的
+`Mekyro-main` 或 `Mekyro-fastapi` 目录复制代码回来覆盖本仓库。
+
+每项修改使用独立分支：
+
+```bash
+git switch -c fix/具体功能
+git add .
+git commit -m "fix: 修复具体功能"
+git push -u origin fix/具体功能
 ```
