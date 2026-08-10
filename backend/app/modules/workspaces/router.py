@@ -65,7 +65,7 @@ class SupplierRegistrationRequest(BaseModel):
     site_type: str = Field(default="none", pattern=r"^(none|shopify|vendure|independent)$")
     prompt: str = Field(default="", max_length=20000)
     daily_lead_limit: int = Field(default=0, ge=0, le=1_000_000)
-    email_outreach_enabled: bool = False
+    email_outreach_enabled: bool = True
     vendure_channels_token: str = Field(default="", max_length=255)
     vendure_url: str = Field(default="", max_length=500)
 

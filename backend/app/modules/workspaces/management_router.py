@@ -162,6 +162,7 @@ def _detail(workspace: Workspace, role: str) -> WorkspaceDetailResponse:
         site_type=workspace.site_type,
         lead_acquisition_requirement=(
             onboarding.get("lead_acquisition_requirement")
+            or workspace.prompt
             or workspace.lead_acquisition_requirement
         ),
         prompt=workspace.prompt,
@@ -208,9 +209,14 @@ async def update_workspace(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="No fields to update"
         )
-    if "lead_acquisition_requirement" in changes:
-        requirement = str(changes["lead_acquisition_requirement"]).strip()
-        if not requirement:
+    requirement_source = None
+    if "prompt" in changes:
+        requirement_source = changes["prompt"]
+    elif "lead_acquisition_requirement" in changes:
+        requirement_source = changes["lead_acquisition_requirement"]
+    if requirement_source is not None:
+        requirement = str(requirement_source).strip()
+        if not requirement and "lead_acquisition_requirement" in changes:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Lead acquisition requirement cannot be empty",
@@ -218,6 +224,7 @@ async def update_workspace(
         state = normalize_state(context.workspace.onboarding_state)
         current_requirement = str(
             state.get("lead_acquisition_requirement")
+            or context.workspace.prompt
             or context.workspace.lead_acquisition_requirement
             or ""
         ).strip()
@@ -232,6 +239,7 @@ async def update_workspace(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Lead acquisition requirement execution is active",
             )
+        changes["prompt"] = requirement
         changes["lead_acquisition_requirement"] = requirement
         state["lead_acquisition_requirement"] = requirement
         pending = leads.get("pending_card")

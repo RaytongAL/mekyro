@@ -1006,6 +1006,7 @@ async def _onboarding_action(
         pending = step_state.get("pending_card")
         requirement = str(
             state.get("lead_acquisition_requirement")
+            or context.workspace.prompt
             or context.workspace.lead_acquisition_requirement
             or ""
         ).strip()

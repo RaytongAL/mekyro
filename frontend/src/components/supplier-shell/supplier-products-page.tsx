@@ -146,6 +146,7 @@ export function SupplierProductsPage() {
   const [editSkuStatus, setEditSkuStatus] = useState("");
   const [editSkuCode, setEditSkuCode] = useState("");
   const [editMoq, setEditMoq] = useState(1);
+  const [editPrice, setEditPrice] = useState(0);
   const [editStock, setEditStock] = useState(0);
   const [editCurrency, setEditCurrency] = useState("USD");
   const [editProductName, setEditProductName] = useState("");
@@ -400,6 +401,7 @@ export function SupplierProductsPage() {
     setEditSkuStatus(sku.status);
     setEditSkuCode(sku.sku_code);
     setEditMoq(sku.moq);
+    setEditPrice(Number(sku.price_tiers?.[0]?.price) || 0);
     setEditStock(sku.stock_quantity);
     setEditCurrency(sku.currency);
     setEditProductName(product.name);
@@ -433,6 +435,7 @@ export function SupplierProductsPage() {
         body: JSON.stringify({
           status: editSkuStatus, sku_code: editSkuCode, moq: editMoq,
           currency: editCurrency, specs: specsObj,
+          price: editPrice,
         }),
       });
       const data = await res.json();
@@ -1134,6 +1137,10 @@ export function SupplierProductsPage() {
               <div className={styles.formGroup} style={{ flex: 1 }}>
                 <label className={styles.formLabel}>{t("ops.productsSkuColMoq")}</label>
                 <Input type="number" className={styles.formInput} value={editMoq} onChange={(e) => setEditMoq(Number(e.target.value))} min={1} />
+              </div>
+              <div className={styles.formGroup} style={{ flex: 1 }}>
+                <label className={styles.formLabel}>{t("ops.productsSkuColPrice")}</label>
+                <Input type="number" step="0.01" className={styles.formInput} value={editPrice} onChange={(e) => setEditPrice(Math.max(0, Number(e.target.value) || 0))} min={0} />
               </div>
               <div className={styles.formGroup} style={{ flex: 1 }}>
                 <label className={styles.formLabel}>{t("ops.productsSkuColStock")}</label>

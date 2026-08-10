@@ -475,7 +475,9 @@ async def _config_tool(
             "workspace_name": context.workspace.name,
             "description": context.workspace.description,
             "site_type": context.workspace.site_type,
-            "lead_acquisition_requirement": context.workspace.lead_acquisition_requirement,
+            "lead_acquisition_requirement": (
+                context.workspace.prompt or context.workspace.lead_acquisition_requirement
+            ),
             "config_id": config.id if config else None,
             "store_url": config.store_url if config else "",
             "api_key_configured": bool(api_key),

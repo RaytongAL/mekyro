@@ -22,6 +22,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 import { api, type ApiResponse } from "@/lib/api";
 import { BackendRowActions } from "@/components/backend-ui/backend-row-actions";
+import { BackendStatusBadge } from "@/components/backend-ui/backend-status-badge";
 import { BackendToolbarButton } from "@/components/backend-ui/backend-toolbar-button";
 import { BackendPageSizeSelect } from "./backend-select";
 import { TruncatedCell } from "./truncated-cell";
@@ -59,6 +60,7 @@ type WorkspaceItem = {
   site_type: string;
   prompt: string;
   daily_lead_limit: number;
+  email_outreach_enabled: boolean;
   is_active: boolean;
   created_at: string;
   members: WorkspaceMember[];
@@ -72,6 +74,7 @@ type SupplierAccountDetail = {
   site_type: string;
   prompt: string;
   daily_lead_limit: number;
+  email_outreach_enabled: boolean;
   vendure_channels_token: string;
   vendure_url: string;
   is_active: boolean;
@@ -138,6 +141,7 @@ const EMPTY_EDIT_FORM = {
   vendure_url: "",
   prompt: "",
   daily_lead_limit: 0,
+  email_outreach_enabled: true,
 };
 
 /* ---------- 组件 ---------- */
@@ -319,6 +323,7 @@ export function SupplierManagementPage() {
           vendure_url: d.vendure_url || "",
           prompt: d.prompt || "",
           daily_lead_limit: d.daily_lead_limit || 0,
+          email_outreach_enabled: d.email_outreach_enabled ?? true,
         });
 
         // 加载 Shopify 配置
@@ -361,6 +366,7 @@ export function SupplierManagementPage() {
     if (editForm.site_type !== (editDetail.site_type || "")) body.site_type = editForm.site_type;
     if (editForm.prompt !== (editDetail.prompt || "")) body.prompt = editForm.prompt;
     if (editForm.daily_lead_limit !== (editDetail.daily_lead_limit || 0)) body.daily_lead_limit = editForm.daily_lead_limit;
+    if (editForm.email_outreach_enabled !== editDetail.email_outreach_enabled) body.email_outreach_enabled = editForm.email_outreach_enabled;
     if (editForm.site_type === "independent") {
       if (editForm.vendure_channels_token !== (editDetail.vendure_channels_token || "")) body.vendure_channels_token = editForm.vendure_channels_token;
       if (editForm.vendure_url !== (editDetail.vendure_url || "")) body.vendure_url = editForm.vendure_url;
@@ -554,6 +560,7 @@ export function SupplierManagementPage() {
                 <TableHead>{t("ops.supplierAccountsHeaderPhone")}</TableHead>
                 <TableHead>{t("ops.supplierManagementShopifyStatus")}</TableHead>
                 <TableHead>{t("ops.supplierAccountsHeaderLeadLimit")}</TableHead>
+                <TableHead>{t("ops.supplierAccountsHeaderEmailOutreach")}</TableHead>
                 <TableHead>{t("ops.supplierAccountsFormPrompt")}</TableHead>
                 <TableHead>{t("ops.headerCreatedAt")}</TableHead>
                 <TableHead>{t("ops.supplierAccountsHeaderActions")}</TableHead>
@@ -580,6 +587,11 @@ export function SupplierManagementPage() {
                     </TableCell>
                     <TableCell style={{ color: "var(--text-secondary)" }}>
                       {ws.daily_lead_limit > 0 ? ws.daily_lead_limit : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <BackendStatusBadge tone={ws.email_outreach_enabled ? "success" : "neutral"}>
+                        {ws.email_outreach_enabled ? t("ops.supplierAccountsActive") : t("ops.supplierAccountsInactive")}
+                      </BackendStatusBadge>
                     </TableCell>
                     <TableCell><TruncatedCell>{ws.prompt || "—"}</TruncatedCell></TableCell>
                     <TableCell style={{ whiteSpace: "nowrap", color: "var(--text-tertiary)", fontSize: 12 }}>
@@ -984,6 +996,21 @@ export function SupplierManagementPage() {
                         placeholder="0"
                         min={0}
                       />
+                    </div>
+                    <div className={styles.formGroup}>
+                      <label className={styles.formLabel}>{t("ops.supplierAccountsFormEmailOutreach")}</label>
+                      <div className={styles.inlineSwitch}>
+                        <Switch
+                          checked={editForm.email_outreach_enabled}
+                          onCheckedChange={(checked) => setEditForm((form) => ({ ...form, email_outreach_enabled: checked }))}
+                        />
+                        <span className={styles.inlineSwitchLabel}>
+                          {editForm.email_outreach_enabled
+                            ? t("ops.supplierAccountsActive")
+                            : t("ops.supplierAccountsInactive")}
+                        </span>
+                      </div>
+                      <p className={styles.formHint}>{t("ops.supplierAccountsFormEmailOutreachDesc")}</p>
                     </div>
                     <div className={styles.formGroup}>
                       <label className={styles.formLabel}>{t("ops.supplierAccountsFormPrompt")}</label>

@@ -53,6 +53,29 @@ services:
       timeout: 3s
       retries: 20
 
+  worker:
+    build:
+      context: ./backend
+    environment:
+      MEKYRO_ENVIRONMENT: local
+      MEKYRO_DATABASE_URL: postgresql+asyncpg://mekyro:mekyro_local@postgres:5432/mekyro
+      MEKYRO_JWT_SECRET: local-only-jwt-secret-change-before-deployment-2026
+      MEKYRO_CREDENTIAL_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      MEKYRO_AUTO_CREATE_SCHEMA: "false"
+      MEKYRO_AUTO_SEED: "false"
+      MEKYRO_CHALLENGE_DEBUG_CODES: "true"
+      MEKYRO_CHALLENGE_GATEWAY_MODE: development
+      MEKYRO_UPLOAD_DIRECTORY: /app/data/uploads
+      MEKYRO_VENDURE_API_KEY: ${MEKYRO_VENDURE_API_KEY:-}
+      MEKYRO_VENDURE_URL: ${MEKYRO_VENDURE_URL:-https://vendureadmin.mangkeyi.com/admin-api}
+      MEKYRO_EMAIL_OUTREACH_API_URL: ${MEKYRO_EMAIL_OUTREACH_API_URL:-https://email.qiantangio.com/mail-api/v1/outreaches}
+      MEKYRO_EMAIL_OUTREACH_API_KEY: ${MEKYRO_EMAIL_OUTREACH_API_KEY:-}
+      MEKYRO_EMAIL_OUTREACH_IDEMPOTENCY_KEY_PREFIX: ${MEKYRO_EMAIL_OUTREACH_IDEMPOTENCY_KEY_PREFIX:-mekyro-outreach}
+    command: python -m app.scripts.process_outbox --poll-seconds 2
+    depends_on:
+      backend:
+        condition: service_healthy
+
   frontend:
     build:
       context: ./frontend

@@ -5,8 +5,8 @@
 ## 目录
 
 - `frontend`：React + Vite 前端
-- `backend`：FastAPI 后端、Alembic 迁移和脱敏 fake seed
-- `docker-compose.local.yml`：本地 PostgreSQL、后端和前端编排
+- `backend`：FastAPI 后端、Alembic 迁移、集成任务 worker 和脱敏 fake seed
+- `docker-compose.local.yml`：本地 PostgreSQL、后端、worker 和前端编排
 - `CODEX_LOCAL_DEPLOYMENT.md`：完整的本地部署、测试账号和故障处理说明
 
 ## 快速启动

@@ -174,7 +174,7 @@ def test_api_key_reads_workspace_prompt_from_its_immutable_tenant_scope(client: 
     assert response.json() == {
         "workspace_id": NEWLIFE,
         "workspace_name": "New Life Refurb Supply",
-        "prompt": "",
+        "prompt": "European mobile retailers seeking recurring CPO inventory.",
         "daily_lead_limit": 0,
     }
 

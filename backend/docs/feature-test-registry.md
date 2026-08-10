@@ -123,6 +123,9 @@ default `pytest` run.
 | SHOP-007 | Discover and cache active Shopify Location | `test_shopify_client_token_graphql_retry_and_location_cache` | Implemented |
 | SHOP-008 | Idempotent outbox-backed product and inventory synchronization | `test_shopify_sync_job_is_workspace_scoped_and_idempotent`, `test_shopify_outbox_worker_syncs_catalog_inventory_and_remote_ids`, `test_active_shopify_config_enqueues_catalog_inventory_and_delete_events` | Implemented |
 | SHOP-009 | Supplier self-service encrypted Shopify configuration | `test_supplier_can_manage_own_shopify_profile_with_encrypted_credentials` | Implemented |
+| VENDURE-001 | Workspace-scoped Vendure catalog outbox and remote ID persistence | `test_vendure_catalog_sync_is_automatic_and_workspace_scoped` | Implemented |
+| VENDURE-002 | Reject cross-Workspace products before Vendure execution | `test_vendure_outbox_rejects_product_from_another_workspace` | Implemented |
+| CRM-OUTREACH-001 | New-lead email outreach outbox honors Workspace setting and tenant scope | `test_lead_creation_enqueues_workspace_scoped_email_outreach` | Implemented |
 | AGENT-001 | Authenticated persistent SSE chat | `test_agent_authenticated_sse_chat_persists_and_resumes_conversation` | Implemented |
 | AGENT-002 | Tenant-safe lead read tools | `test_agent_lead_tools_are_tenant_scoped_and_cover_django_read_contract` | Implemented |
 | AGENT-003 | Approval-aware product, SKU and import tools | `test_agent_product_write_requires_approval_and_duplicate_confirmation_is_idempotent`, `test_agent_catalog_write_adapters_cover_product_sku_update_delete_and_import` | Implemented |

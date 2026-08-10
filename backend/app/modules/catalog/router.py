@@ -24,7 +24,7 @@ from app.core.models import (
     new_id,
 )
 from app.core.storage import save_local_upload
-from app.modules.shopify.outbox import enqueue_shopify_sync_if_active
+from app.modules.catalog.sync_outbox import enqueue_catalog_sync_if_configured
 
 router = APIRouter(prefix="/workspaces/{workspace_id}", tags=["catalog"])
 
@@ -165,6 +165,7 @@ class VariantUpdateRequest(BaseModel):
     currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
     stock_quantity: int | None = Field(default=None, ge=0, le=1_000_000_000)
     status: CatalogStatus | None = None
+    price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     product_name: str | None = Field(default=None, min_length=1, max_length=200)
     product_category_id: str | None = Field(default=None, max_length=36)
 
@@ -755,7 +756,7 @@ async def create_product(
             "variant_image_count": sum(bool(item.image) for item in payload.variants),
         },
     )
-    await enqueue_shopify_sync_if_active(
+    await enqueue_catalog_sync_if_configured(
         session,
         workspace_id=context.workspace.id,
         operation="catalog",
@@ -899,7 +900,7 @@ async def update_product(
         entity_id=product.id,
         payload=changes,
     )
-    await enqueue_shopify_sync_if_active(
+    await enqueue_catalog_sync_if_configured(
         session,
         workspace_id=context.workspace.id,
         operation="catalog",
@@ -937,7 +938,7 @@ async def delete_product(
         payload={"name": product.name},
     )
     remote_product_id = str((product.external_ids or {}).get("shopify_product_id") or "")
-    await enqueue_shopify_sync_if_active(
+    await enqueue_catalog_sync_if_configured(
         session,
         workspace_id=context.workspace.id,
         operation="delete",
@@ -1190,7 +1191,7 @@ async def create_variant(
         entity_id=variant.id,
         payload={"product_id": product.id, "sku_code": variant.sku_code},
     )
-    await enqueue_shopify_sync_if_active(
+    await enqueue_catalog_sync_if_configured(
         session,
         workspace_id=context.workspace.id,
         operation="catalog",
@@ -1216,6 +1217,7 @@ async def update_variant(
 ) -> ProductVariant:
     variant = await _load_variant(context.workspace.id, variant_id, session)
     changes = payload.model_dump(exclude_unset=True)
+    price = changes.pop("price", None)
     product_changes = {}
     if "product_name" in changes:
         product_changes["name"] = changes.pop("product_name")
@@ -1238,6 +1240,18 @@ async def update_variant(
         setattr(variant, field_name, value)
     for field_name, value in product_changes.items():
         setattr(product, field_name, value)
+    if price is not None:
+        first_tier = min(variant.price_tiers, key=lambda item: item.minimum_quantity, default=None)
+        if first_tier is None:
+            first_tier = PriceTier(
+                id=new_id(),
+                variant_id=variant.id,
+                minimum_quantity=1,
+                unit_price=price,
+            )
+            session.add(first_tier)
+        else:
+            first_tier.unit_price = price
     if changes.get("status") == "inactive" and product.status == "active":
         await session.flush()
         active_variants = await session.scalar(
@@ -1252,6 +1266,8 @@ async def update_variant(
         if not active_variants:
             product.status = "inactive"
     audit_changes = {**changes, **product_changes}
+    if price is not None:
+        audit_changes["price"] = str(price)
     record_audit(
         session,
         workspace_id=context.workspace.id,
@@ -1261,7 +1277,7 @@ async def update_variant(
         entity_id=variant.id,
         payload=audit_changes,
     )
-    await enqueue_shopify_sync_if_active(
+    await enqueue_catalog_sync_if_configured(
         session,
         workspace_id=context.workspace.id,
         operation="catalog",
@@ -1296,7 +1312,7 @@ async def delete_variant(
         entity_id=variant.id,
         payload={"sku_code": variant.sku_code},
     )
-    await enqueue_shopify_sync_if_active(
+    await enqueue_catalog_sync_if_configured(
         session,
         workspace_id=context.workspace.id,
         operation="catalog",
@@ -1458,7 +1474,7 @@ async def replace_price_tiers(
         entity_id=variant.id,
         payload={"tiers": [item.model_dump(mode="json") for item in payload]},
     )
-    await enqueue_shopify_sync_if_active(
+    await enqueue_catalog_sync_if_configured(
         session,
         workspace_id=context.workspace.id,
         operation="catalog",
@@ -1571,7 +1587,7 @@ async def batch_update_variants(
         entity_id=context.workspace.id,
         payload={"variant_ids": variant_ids},
     )
-    await enqueue_shopify_sync_if_active(
+    await enqueue_catalog_sync_if_configured(
         session,
         workspace_id=context.workspace.id,
         operation="catalog",
@@ -1644,7 +1660,7 @@ async def batch_replace_price_tiers(
         entity_id=context.workspace.id,
         payload={"variant_ids": variant_ids},
     )
-    await enqueue_shopify_sync_if_active(
+    await enqueue_catalog_sync_if_configured(
         session,
         workspace_id=context.workspace.id,
         operation="catalog",
@@ -1773,7 +1789,7 @@ async def batch_adjust_inventory(
         entity_id=context.workspace.id,
         payload={"movement_count": len(response_items), "variant_ids": sorted(variant_ids)},
     )
-    await enqueue_shopify_sync_if_active(
+    await enqueue_catalog_sync_if_configured(
         session,
         workspace_id=context.workspace.id,
         operation="inventory",
@@ -1898,7 +1914,7 @@ async def create_product_image(
             "image_type": image.image_type,
         },
     )
-    await enqueue_shopify_sync_if_active(
+    await enqueue_catalog_sync_if_configured(
         session,
         workspace_id=context.workspace.id,
         operation="catalog",
@@ -1947,7 +1963,7 @@ async def delete_product_image(
         entity_id=image.id,
         payload=payload,
     )
-    await enqueue_shopify_sync_if_active(
+    await enqueue_catalog_sync_if_configured(
         session,
         workspace_id=context.workspace.id,
         operation="catalog",
@@ -2165,7 +2181,7 @@ async def adjust_inventory(
             "reference": payload.reference,
         },
     )
-    await enqueue_shopify_sync_if_active(
+    await enqueue_catalog_sync_if_configured(
         session,
         workspace_id=context.workspace.id,
         operation="inventory",

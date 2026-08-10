@@ -633,8 +633,10 @@ async def apply_card(
             context.workspace.vendure_url = answers["vendure_url"]
     else:
         if not legacy_lead_card:
-            context.workspace.lead_acquisition_requirement = answers["requirement_description"]
-            state["lead_acquisition_requirement"] = answers["requirement_description"]
+            requirement = answers["requirement_description"]
+            context.workspace.prompt = requirement
+            context.workspace.lead_acquisition_requirement = requirement
+            state["lead_acquisition_requirement"] = requirement
     step_state["pending_card"] = None
     step_state["execution"] = None
     step_state["status"] = "draft"

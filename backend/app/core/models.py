@@ -90,7 +90,7 @@ class Workspace(Base, TimestampMixin):
     prompt: Mapped[str] = mapped_column(Text, default="")
     prompt_version: Mapped[int] = mapped_column(Integer, default=1)
     daily_lead_limit: Mapped[int] = mapped_column(Integer, default=0)
-    email_outreach_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    email_outreach_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     vendure_channels_token: Mapped[str] = mapped_column(String(255), default="")
     vendure_url: Mapped[str] = mapped_column(String(500), default="")
     onboarding_state: Mapped[dict] = mapped_column(JSON, default=default_onboarding_state)

@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     agent_base_url: str = "https://api.deepseek.com"
     agent_model: str = "deepseek-chat"
     agent_timeout_seconds: float = 30
+    vendure_api_key: str = ""
+    vendure_url: str = "https://vendureadmin.mangkeyi.com/admin-api"
+    email_outreach_api_url: str = "https://email.qiantangio.com/mail-api/v1/outreaches"
+    email_outreach_api_key: str = ""
+    email_outreach_idempotency_key_prefix: str = "mekyro-outreach"
 
 
 @lru_cache

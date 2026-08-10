@@ -26,7 +26,7 @@ export function SupplierSettingsPage() {
   const [apiKey, setApiKey] = useState("");
   const [secretKey, setSecretKey] = useState("");
   const [vendureUrl, setVendureUrl] = useState("");
-  const [prompt, setPrompt] = useState("");
+  const [vendureChannelsToken, setVendureChannelsToken] = useState("");
   const [dailyLeadLimit, setDailyLeadLimit] = useState(0);
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
@@ -41,12 +41,12 @@ export function SupplierSettingsPage() {
           setName(d.data.workspace_name || "");
           setDesc(d.data.description || "");
           setSiteType(d.data.site_type || "");
-          setLeadRequirement(d.data.lead_acquisition_requirement || "");
+          setLeadRequirement(d.data.prompt || d.data.lead_acquisition_requirement || "");
           setStoreUrl(d.data.store_url || "");
           setApiKey(d.data.api_key || "");
           setSecretKey("");
           setVendureUrl(d.data.vendure_url || "");
-          setPrompt(d.data.prompt || "");
+          setVendureChannelsToken(d.data.vendure_channels_token || "");
           setDailyLeadLimit(d.data.daily_lead_limit || 0);
         }
       }).catch(() => {}).finally(() => setLoading(false));
@@ -71,8 +71,7 @@ export function SupplierSettingsPage() {
       workspace_name: name,
       description: desc,
       site_type: siteType,
-      lead_acquisition_requirement: normalizedLeadRequirement,
-      prompt,
+      prompt: normalizedLeadRequirement,
       daily_lead_limit: dailyLeadLimit,
     };
     if (siteType === "shopify") {
@@ -81,6 +80,7 @@ export function SupplierSettingsPage() {
     }
     if (siteType === "independent") {
       body.vendure_url = vendureUrl;
+      body.vendure_channels_token = vendureChannelsToken;
     }
     fetch("/api/supplier/profile/", {
       method: "PATCH",
@@ -217,15 +217,26 @@ export function SupplierSettingsPage() {
           ) : null}
 
           {showVendure ? (
-            <div className={styles.supplierSettingsFieldWide}>
-              <Label htmlFor="supplier-vendure-url">{t("ops.vendureUrl")}</Label>
-              <Input
-                id="supplier-vendure-url"
-                value={vendureUrl}
-                onChange={(event) => setVendureUrl(event.target.value)}
-                placeholder={t("ops.vendureUrlPlaceholder")}
-              />
-            </div>
+            <>
+              <div className={styles.supplierSettingsFieldWide}>
+                <Label htmlFor="supplier-vendure-url">{t("ops.vendureUrl")}</Label>
+                <Input
+                  id="supplier-vendure-url"
+                  value={vendureUrl}
+                  onChange={(event) => setVendureUrl(event.target.value)}
+                  placeholder={t("ops.vendureUrlPlaceholder")}
+                />
+              </div>
+              <div className={styles.supplierSettingsFieldWide}>
+                <Label htmlFor="supplier-vendure-token">{t("ops.vendureChannelsToken")}</Label>
+                <Input
+                  id="supplier-vendure-token"
+                  value={vendureChannelsToken}
+                  onChange={(event) => setVendureChannelsToken(event.target.value)}
+                  placeholder={t("ops.vendureChannelsTokenPlaceholder")}
+                />
+              </div>
+            </>
           ) : null}
         </div>
       </section>
@@ -262,16 +273,6 @@ export function SupplierSettingsPage() {
               onChange={(event) => setDailyLeadLimit(Math.max(0, parseInt(event.target.value) || 0))}
               placeholder={t("supplier.configLeadLimitPlaceholder")}
               min={0}
-            />
-          </div>
-          <div className={styles.supplierSettingsFieldWide}>
-            <Label htmlFor="supplier-prompt">{t("supplier.configPrompt")}</Label>
-            <Textarea
-              id="supplier-prompt"
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder={t("supplier.configPromptPlaceholder")}
-              rows={5}
             />
           </div>
         </div>

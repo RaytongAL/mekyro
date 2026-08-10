@@ -6,6 +6,7 @@
 
 - React 前端
 - FastAPI 后端（`backend`）
+- 外部集成任务处理器（`worker`）
 - PostgreSQL 16
 
 本地环境使用脱敏测试数据。不要导入 `mekyro.sql`，不要连接生产数据库，也不要使用生产账号、API Key、Shopify 凭证或客户数据。
@@ -33,7 +34,7 @@ docker compose -f docker-compose.local.yml up -d --build
 docker compose -f docker-compose.local.yml ps
 ```
 
-预期 `postgres`、`backend`、`frontend` 都处于运行状态，其中后端和数据库应为 healthy。
+预期 `postgres`、`backend`、`worker`、`frontend` 都处于运行状态，其中后端和数据库应为 healthy。
 
 ## 访问地址
 
@@ -60,6 +61,7 @@ docker compose -f docker-compose.local.yml ps
 1. Alembic 迁移到最新版本
 2. 写入脱敏 fake database 测试数据
 3. 启动 FastAPI
+4. 启动 outbox worker，处理 Shopify、Vendure 和邮件外展任务
 
 数据库数据保存在 Docker volume `mekyro_postgres_data`，上传文件保存在 `mekyro_uploads`。
 
@@ -93,6 +95,7 @@ lsof -nP -iTCP:8200 -sTCP:LISTEN
 
 ```bash
 docker compose -f docker-compose.local.yml logs -f backend
+docker compose -f docker-compose.local.yml logs -f worker
 docker compose -f docker-compose.local.yml logs -f frontend
 docker compose -f docker-compose.local.yml logs -f postgres
 ```

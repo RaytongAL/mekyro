@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.audit import record_audit
 from app.core.dependencies import SessionDep, WorkspaceDep, WorkspaceWriteDep
 from app.core.models import ContactActivity, Lead, Order, Quote, new_id
+from app.modules.outreach.outbox import enqueue_email_outreach
 
 router = APIRouter(prefix="/workspaces/{workspace_id}/leads", tags=["crm"])
 activity_router = APIRouter(prefix="/workspaces/{workspace_id}/activities", tags=["crm"])
@@ -309,6 +310,7 @@ async def create_lead(
 ) -> Lead:
     lead = _new_lead(context.workspace.id, payload)
     session.add(lead)
+    enqueue_email_outreach(session, workspace=context.workspace, leads=[lead])
     record_audit(
         session,
         workspace_id=context.workspace.id,
@@ -339,6 +341,7 @@ async def batch_create_leads(
 ) -> list[Lead]:
     leads = [_new_lead(context.workspace.id, item) for item in payload.items]
     session.add_all(leads)
+    enqueue_email_outreach(session, workspace=context.workspace, leads=leads)
     record_audit(
         session,
         workspace_id=context.workspace.id,

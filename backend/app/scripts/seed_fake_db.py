@@ -129,6 +129,7 @@ async def seed_database(database: Database) -> bool:
             description="Hong Kong supplier of certified pre-owned mobile devices.",
             site_type="shopify",
             lead_acquisition_requirement="European mobile retailers seeking recurring CPO inventory.",
+            prompt="European mobile retailers seeking recurring CPO inventory.",
             email_outreach_enabled=True,
         )
         aurora = Workspace(
@@ -138,6 +139,7 @@ async def seed_database(database: Database) -> bool:
             description="Shenzhen smart home lighting manufacturer.",
             site_type="vendure",
             lead_acquisition_requirement="Distributors in the Middle East with local installation partners.",
+            prompt="Distributors in the Middle East with local installation partners.",
             email_outreach_enabled=False,
         )
         session.add_all([ops, newlife_user, aurora_user, newlife, aurora])

@@ -257,6 +257,7 @@ async function mapLegacyRequest(source: URL, inputInit: RequestInit): Promise<Ma
         owner_role: body.role,
         prompt: body.prompt,
         daily_lead_limit: body.daily_lead_limit,
+        email_outreach_enabled: body.email_outreach_enabled,
         vendure_channels_token: body.vendure_channels_token,
         vendure_url: body.vendure_url,
       }));
@@ -268,15 +269,21 @@ async function mapLegacyRequest(source: URL, inputInit: RequestInit): Promise<Ma
   if (path === "/api/supplier/profile") {
     const workspaceId = await workspaceIdFor(source, init, true);
     if (method === "PATCH") {
-      init = replaceJsonBody(init, (body) => ({
-        name: body.workspace_name,
-        description: body.description,
-        site_type: body.site_type || "none",
-        lead_acquisition_requirement: body.lead_acquisition_requirement,
-        prompt: body.prompt,
-        daily_lead_limit: body.daily_lead_limit,
-        vendure_url: body.vendure_url,
-      }));
+      init = replaceJsonBody(init, (body) => {
+        const token = body.vendure_channels_token;
+        return {
+          name: body.workspace_name,
+          description: body.description,
+          site_type: body.site_type || "none",
+          lead_acquisition_requirement: body.lead_acquisition_requirement,
+          prompt: body.prompt,
+          daily_lead_limit: body.daily_lead_limit,
+          email_outreach_enabled: body.email_outreach_enabled,
+          vendure_url: body.vendure_url,
+          vendure_channels_token:
+            typeof token === "string" && !token.includes("*") ? token : undefined,
+        };
+      });
     }
     return { init, kind: "workspace-profile", url: apiUrl(`/workspaces/${workspaceId}`) };
   }
@@ -494,6 +501,10 @@ async function mapLegacyRequest(source: URL, inputInit: RequestInit): Promise<Ma
 
   const inventoryList = path.match(/^\/api\/(supplier|internal)\/inventory-logs$/);
   if (inventoryList) {
+    if (params.has("sku_id")) {
+      params.set("variant_id", params.get("sku_id") || "");
+      params.delete("sku_id");
+    }
     const target = inventoryList[1] === "internal"
       ? "/internal/inventory-movements"
       : `/workspaces/${workspaceId}/inventory-movements`;

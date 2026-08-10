@@ -16,6 +16,9 @@ docker compose -f docker-compose.local.yml up -d --build
 - OpenAPI: http://127.0.0.1:8200/docs
 - PostgreSQL: `127.0.0.1:55432`
 
+`worker` 容器负责处理 Shopify、Vendure 和线索邮件外展 outbox。未配置对应 API Key 时，
+本地业务接口仍可测试，但不会成功调用外部系统。
+
 本地测试账号的密码均为 `Mekyro123!`：
 
 - `ops`：平台管理员

@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.audit import record_audit
 from app.core.dependencies import SessionDep, WorkspaceDep, WorkspaceWriteDep
 from app.core.models import Category, PriceTier, Product, ProductImage, ProductVariant, new_id
-from app.modules.shopify.outbox import enqueue_shopify_sync_if_active
+from app.modules.catalog.sync_outbox import enqueue_catalog_sync_if_configured
 
 router = APIRouter(prefix="/workspaces/{workspace_id}/product-import", tags=["catalog-import"])
 
@@ -442,7 +442,7 @@ async def _import_product_batch(
         entity_id=context.workspace.id,
         payload={"product_count": len(groups), "variant_count": len(batch_rows)},
     )
-    await enqueue_shopify_sync_if_active(
+    await enqueue_catalog_sync_if_configured(
         session,
         workspace_id=context.workspace.id,
         operation="catalog",
