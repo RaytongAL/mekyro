@@ -27,6 +27,11 @@ export interface SSEStatusEvent {
   data: { state: string };
 }
 
+export interface SSEConversationEvent {
+  type: "conversation";
+  data: { conversation_id: string };
+}
+
 export type OnboardingActionType =
   | "resume_onboarding"
   | "select_onboarding_workspace"
@@ -127,6 +132,7 @@ export type SSEEvent =
   | SSEToolUseEvent
   | SSEToolResultEvent
   | SSEStatusEvent
+  | SSEConversationEvent
   | SSEOnboardingCardEvent
   | SSEOnboardingContextEvent
   | SSEDoneEvent
@@ -134,6 +140,7 @@ export type SSEEvent =
 
 export interface ChatRequest {
   message?: string;
+  conversation_id?: string;
   workspace_id?: number;
   action?: {
     type: OnboardingActionType;
@@ -150,6 +157,7 @@ export interface ChatRequest {
     answers?: Record<string, string>;
   };
 }
+
 
 /**
  * 流式对话 — 返回 AsyncGenerator，逐条 yield SSE 事件

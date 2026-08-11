@@ -1,4 +1,5 @@
 import type {
+  ChatRequest,
   OnboardingCardData,
   OnboardingContextData,
 } from "./chat";
@@ -23,6 +24,7 @@ export type OnboardingSessionMessage = {
 
 export type OnboardingSessionSnapshot = {
   context: OnboardingContextData | null;
+  conversationId: string | null;
   dismissed: boolean;
   completionNotice: string | null;
   messages: OnboardingSessionMessage[];
@@ -39,6 +41,14 @@ export type OnboardingSessionIdentity = {
 export function isLegacyProductsOnboardingMessage(message: OnboardingSessionMessage) {
   return message.onboardingCard?.step === "products"
     || message.onboardingStep?.currentStep === "products";
+}
+
+export function continueChatRequest(
+  request: ChatRequest,
+  conversationId: string | null,
+): ChatRequest {
+  if (!conversationId || request.conversation_id) return request;
+  return { ...request, conversation_id: conversationId };
 }
 
 type SessionStorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -58,6 +68,7 @@ export function onboardingWorkspaceSessionKey(userId: number) {
 export function createEmptyOnboardingSessionSnapshot(): OnboardingSessionSnapshot {
   return {
     context: null,
+    conversationId: null,
     dismissed: false,
     completionNotice: null,
     messages: [],

@@ -30,6 +30,10 @@ services:
       MEKYRO_CHALLENGE_DEBUG_CODES: "true"
       MEKYRO_CHALLENGE_GATEWAY_MODE: development
       MEKYRO_UPLOAD_DIRECTORY: /app/data/uploads
+      MEKYRO_AGENT_API_KEY: ${MEKYRO_AGENT_API_KEY:-}
+      MEKYRO_AGENT_BASE_URL: ${MEKYRO_AGENT_BASE_URL:-https://api.deepseek.com}
+      MEKYRO_AGENT_MODEL: ${MEKYRO_AGENT_MODEL:-deepseek-chat}
+      MEKYRO_AGENT_TIMEOUT_SECONDS: ${MEKYRO_AGENT_TIMEOUT_SECONDS:-30}
     command: >-
       sh -c "alembic upgrade head &&
       python -m app.scripts.seed_fake_db --skip-schema &&

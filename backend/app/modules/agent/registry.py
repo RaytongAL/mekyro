@@ -72,10 +72,21 @@ _INTEGER = {"type": "integer"}
 _BOOLEAN = {"type": "boolean"}
 _OBJECT = {"type": "object"}
 _ARRAY = {"type": "array", "items": {"type": "object"}}
+_COUNTRY_CODE = {
+    "type": "string",
+    "description": "ISO 3166-1 alpha-2 country code, for example JP, CN, or US",
+    "minLength": 2,
+    "maxLength": 2,
+}
 
 TOOL_PARAMETERS = {
     "lead_list_leads": _object_schema(
-        {"country": _STRING, "stage": _STRING, "page": _INTEGER, "page_size": _INTEGER}
+        {
+            "country": _COUNTRY_CODE,
+            "stage": _STRING,
+            "page": _INTEGER,
+            "page_size": _INTEGER,
+        }
     ),
     "lead_get_detail": _object_schema({"lead_id": _STRING}, required=("lead_id",)),
     "lead_get_contact_logs": _object_schema({"lead_id": _STRING}, required=("lead_id",)),

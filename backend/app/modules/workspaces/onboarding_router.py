@@ -24,8 +24,17 @@ OnboardingStep = Literal["profile", "site", "leads"]
 STEPS: tuple[str, ...] = ("profile", "site", "leads")
 LEGACY_STEPS: tuple[str, ...] = ("products",)
 ONBOARDING_SCHEMA_VERSION = 5
-MAX_REQUIREMENT_LENGTH = 2000
+MAX_REQUIREMENT_LENGTH = 20000
 EXECUTION_UNKNOWN_AFTER_SECONDS = 10 * 60
+STRUCTURED_LEAD_FIELDS = (
+    "target_industry",
+    "target_subject",
+    "target_countries",
+    "customer_features",
+    "product_whitelist",
+    "exclusions",
+    "contact_requirements",
+)
 
 
 class DraftRequest(BaseModel):
@@ -132,7 +141,7 @@ def normalize_state(raw: dict | None) -> dict:
         "completed"
         if current_step == "done"
         else "paused"
-        if was_paused and has_progress
+        if was_paused
         else "in_progress"
         if has_progress
         else "not_started"
@@ -314,15 +323,26 @@ def _card(step: str, answers: dict) -> dict:
         kind = "site"
         title = "站点类型预览"
     else:
-        fields = [
-            {
-                "key": "requirement_description",
-                "label": "总体获客需求",
-                "value": answers["requirement_description"],
-            }
-        ]
+        if answers.get("target_industry"):
+            fields = [
+                {"key": "target_industry", "label": "目标行业", "value": answers["target_industry"]},
+                {"key": "target_subject", "label": "目标主体", "value": answers["target_subject"]},
+                {"key": "target_countries", "label": "目标国家或地区", "value": answers["target_countries"]},
+                {"key": "customer_features", "label": "目标客户特征", "value": answers["customer_features"]},
+                {"key": "product_whitelist", "label": "我方产品白名单", "value": answers["product_whitelist"]},
+                {"key": "exclusions", "label": "排除对象", "value": answers["exclusions"]},
+                {"key": "contact_requirements", "label": "联系方式要求", "value": answers["contact_requirements"]},
+            ]
+        else:
+            fields = [
+                {
+                    "key": "requirement_description",
+                    "label": "总体获客需求",
+                    "value": answers["requirement_description"],
+                }
+            ]
         kind = "lead_requirement"
-        title = "总体线索获取需求预览"
+        title = "公开线索发现配置预览"
     return {
         "card_id": card_id,
         "step": step,
@@ -421,6 +441,8 @@ def _validate_answers(step: str, answers: dict) -> dict:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Site URL is too long"
             )
         return {"site_type": site_type, "vendure_url": vendure_url}
+    if any(key in answers for key in STRUCTURED_LEAD_FIELDS):
+        return _validate_structured_lead_answers(answers)
     requirement = " ".join(str(answers.get("requirement_description") or "").split()).strip()
     if not requirement:
         raise HTTPException(
@@ -433,6 +455,78 @@ def _validate_answers(step: str, answers: dict) -> dict:
             detail="Lead acquisition requirement is too long",
         )
     return {"requirement_description": requirement}
+
+
+def _lead_field(answers: dict, key: str, label: str, *, required: bool = True) -> str:
+    value = str(answers.get(key) or "").strip()
+    if required and not value:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"{label} is required",
+        )
+    if len(value) > 4000:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"{label} is too long",
+        )
+    return value
+
+
+def _bullet_list(value: str) -> str:
+    lines = [line.strip().lstrip("-• ").strip() for line in value.splitlines() if line.strip()]
+    return "\n".join(f"- {line}" for line in lines) if lines else "- 无"
+
+
+def _validate_structured_lead_answers(answers: dict) -> dict:
+    normalized = {
+        "target_industry": _lead_field(answers, "target_industry", "Target industry"),
+        "target_subject": _lead_field(answers, "target_subject", "Target subject"),
+        "target_countries": _lead_field(answers, "target_countries", "Target countries"),
+        "customer_features": _lead_field(answers, "customer_features", "Customer features"),
+        "product_whitelist": _lead_field(answers, "product_whitelist", "Product whitelist"),
+        "exclusions": _lead_field(answers, "exclusions", "Exclusions", required=False)
+        or "无公开联系方式的主体\n与目标需求没有直接证据关联的主体",
+        "contact_requirements": _lead_field(
+            answers, "contact_requirements", "Contact requirements", required=False
+        )
+        or "公开 Email、电话或 WhatsApp 任意一种即可，不得推测或补全。",
+    }
+    prompt = f"""请从公开网页中寻找符合以下要求的潜在线索。
+
+【目标行业】
+{normalized['target_industry']}
+
+【目标主体】
+{normalized['target_subject']}
+主体不强制为 B2B，但必须与本次业务需求直接相关。
+
+【目标国家或地区】
+{normalized['target_countries']}
+
+【目标客户特征】
+{normalized['customer_features']}
+
+【我方产品白名单】
+{_bullet_list(normalized['product_whitelist'])}
+未列入本清单的产品不得出现在“推荐产品”中。
+
+【排除对象】
+{_bullet_list(normalized['exclusions'])}
+
+【联系方式要求】
+{normalized['contact_requirements']}
+
+【输出语言】
+简体中文
+
+【质量要求】
+必须依据当前候选的公开证据判断，不得编造主体名称、经营品类、销售渠道、联系人、国家、产品关系或推荐理由。"""
+    if len(prompt) > MAX_REQUIREMENT_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Lead acquisition requirement is too long",
+        )
+    return {**normalized, "requirement_description": prompt}
 
 
 def _valid_http_url(value: object, label: str) -> str:
@@ -815,7 +909,7 @@ async def cancel_card(
 @router.post("/pause")
 async def pause_onboarding(context: WorkspaceWriteDep, session: SessionDep) -> dict:
     state = normalize_state(context.workspace.onboarding_state)
-    if state["status"] not in {"in_progress", "paused"}:
+    if state["status"] not in {"not_started", "in_progress", "paused"}:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Onboarding cannot be paused in the current state",

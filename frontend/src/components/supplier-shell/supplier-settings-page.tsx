@@ -17,12 +17,14 @@ export function SupplierSettingsPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [workspaceId, setWorkspaceId] = useState<number | null>(null);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [siteType, setSiteType] = useState("");
+  const [loadedSiteType, setLoadedSiteType] = useState("");
   const [leadRequirement, setLeadRequirement] = useState("");
   const [storeUrl, setStoreUrl] = useState("");
+  const [loadedStoreUrl, setLoadedStoreUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [secretKey, setSecretKey] = useState("");
   const [vendureUrl, setVendureUrl] = useState("");
@@ -35,12 +37,14 @@ export function SupplierSettingsPage() {
     const token = getToken(); if (!token) return;
     setLoading(true);
     fetch("/api/supplier/profile/", { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(d => {
+      .then(r => r.json()).then(async d => {
         if (d?.code === 200 && d.data) {
-          setWorkspaceId(d.data.workspace_id ?? null);
+          const nextWorkspaceId = String(d.data.workspace_id || "") || null;
+          setWorkspaceId(nextWorkspaceId);
           setName(d.data.workspace_name || "");
           setDesc(d.data.description || "");
           setSiteType(d.data.site_type || "");
+          setLoadedSiteType(d.data.site_type || "");
           setLeadRequirement(d.data.prompt || d.data.lead_acquisition_requirement || "");
           setStoreUrl(d.data.store_url || "");
           setApiKey(d.data.api_key || "");
@@ -48,13 +52,26 @@ export function SupplierSettingsPage() {
           setVendureUrl(d.data.vendure_url || "");
           setVendureChannelsToken(d.data.vendure_channels_token || "");
           setDailyLeadLimit(d.data.daily_lead_limit || 0);
+          if (d.data.site_type === "shopify" && nextWorkspaceId) {
+            const configResponse = await fetch(
+              `/api/v1/workspaces/${encodeURIComponent(nextWorkspaceId)}/shopify/config`,
+              { headers: { Authorization: `Bearer ${token}` } },
+            );
+            const config = await configResponse.json();
+            if (!configResponse.ok) {
+              throw new Error(config?.detail || t("supplier.settingsSaveFailed"));
+            }
+            setStoreUrl(config.store_url || "");
+            setLoadedStoreUrl(config.store_url || "");
+            setApiKey(config.api_key_masked || "");
+          }
         }
-      }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+      }).catch(() => setError(t("supplier.settingsNetworkError"))).finally(() => setLoading(false));
+  }, [t]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
-  function handleSave() {
+  async function handleSave() {
     const normalizedLeadRequirement = leadRequirement.trim();
     setError(""); setOkMsg("");
     if (!normalizedLeadRequirement) {
@@ -82,26 +99,66 @@ export function SupplierSettingsPage() {
       body.vendure_url = vendureUrl;
       body.vendure_channels_token = vendureChannelsToken;
     }
-    fetch("/api/supplier/profile/", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
-    }).then(r => r.json()).then(d => {
+    try {
+      const response = await fetch("/api/supplier/profile/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const d = await response.json();
       if (d?.code === 200) {
         const savedRequirement = d.data?.lead_acquisition_requirement || normalizedLeadRequirement;
-        const savedWorkspaceId = d.data?.workspace_id ?? workspaceId;
+        const savedWorkspaceId = String(d.data?.workspace_id || workspaceId || "") || null;
+        const shopifyConfigChanged = siteType === "shopify" && (
+          loadedSiteType !== "shopify"
+          || storeUrl.trim() !== loadedStoreUrl
+          || Boolean(apiKey && !apiKey.includes("*"))
+          || Boolean(secretKey)
+        );
+        if (shopifyConfigChanged) {
+          if (!savedWorkspaceId) throw new Error(t("supplier.settingsSaveFailed"));
+          const shopifyBody: Record<string, string> = { store_url: storeUrl.trim() };
+          if (apiKey && !apiKey.includes("*")) shopifyBody.api_key = apiKey.trim();
+          if (secretKey) shopifyBody.api_secret_key = secretKey;
+          const configResponse = await fetch(
+            `/api/v1/workspaces/${encodeURIComponent(savedWorkspaceId)}/shopify/config`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify(shopifyBody),
+            },
+          );
+          const config = await configResponse.json();
+          if (!configResponse.ok) {
+            throw new Error(config?.detail || t("supplier.settingsSaveFailed"));
+          }
+          setStoreUrl(config.store_url || "");
+          setLoadedStoreUrl(config.store_url || "");
+          setApiKey(config.api_key_masked || apiKey);
+          setSecretKey("");
+        }
+        setLoadedSiteType(siteType);
         setLeadRequirement(savedRequirement);
         setOkMsg(t("supplier.settingsSaveSuccess"));
         if (savedWorkspaceId && d.data?.requirement_updated) {
-          notifyOnboardingRequirementUpdated(
-            savedWorkspaceId,
-            d.data?.invalidated_card_id,
-          );
+          const onboardingWorkspaceId = Number(savedWorkspaceId);
+          if (Number.isInteger(onboardingWorkspaceId) && onboardingWorkspaceId > 0) {
+            notifyOnboardingRequirementUpdated(
+              onboardingWorkspaceId,
+              d.data?.invalidated_card_id,
+            );
+          }
         }
       } else {
         setError(d?.message ?? t("supplier.settingsSaveFailed"));
       }
-    }).catch(() => setError(t("supplier.settingsNetworkError"))).finally(() => setSaving(false));
+    } catch (saveError) {
+      setError(saveError instanceof Error && saveError.message
+        ? saveError.message
+        : t("supplier.settingsNetworkError"));
+    } finally {
+      setSaving(false);
+    }
   }
 
   const showShopify = siteType === "shopify";
@@ -117,19 +174,6 @@ export function SupplierSettingsPage() {
         handleSave();
       }}
     >
-      <div className={styles.supplierSettingsFeedback}>
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {okMsg ? (
-          <Alert className={styles.supplierSettingsSuccess} role="status">
-            <AlertDescription>{okMsg}</AlertDescription>
-          </Alert>
-        ) : null}
-      </div>
-
       <section className={styles.supplierSettingsSection} aria-labelledby="supplier-company-section">
         <div className={styles.supplierSettingsSectionIntro}>
           <Building2 aria-hidden="true" />
@@ -279,6 +323,18 @@ export function SupplierSettingsPage() {
       </section>
 
       <div className={styles.supplierSettingsActions}>
+        <div className={styles.supplierSettingsFeedback} aria-live="polite">
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+          {okMsg ? (
+            <Alert className={styles.supplierSettingsSuccess} role="status">
+              <AlertDescription>{okMsg}</AlertDescription>
+            </Alert>
+          ) : null}
+        </div>
         <Button type="submit" disabled={saving}>
           {saving ? <Loader2 aria-hidden="true" className={styles.settingsSpin} /> : null}
           {t("supplier.configSave")}

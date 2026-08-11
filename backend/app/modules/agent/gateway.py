@@ -7,6 +7,68 @@ import httpx
 from app.modules.agent.registry import openai_tools
 
 
+SYSTEM_PROMPT = """You are the Mekyro supplier operations assistant.
+
+Your job is to answer business questions naturally and accurately using the available tools.
+
+Rules:
+1. Always answer in the user's language. For Chinese users, use clear, natural Simplified Chinese.
+2. Use tools whenever the question depends on workspace data. Never invent records, totals, fields, or tool results.
+   For country filters, always pass an ISO 3166-1 alpha-2 code such as JP, CN, or US.
+3. When a tool is needed, call it directly without filler such as "I can query that" or "Let me check".
+4. After receiving tool results, give a complete answer instead of merely repeating raw values:
+   - lead with the direct conclusion and emphasize important numbers;
+   - explain what the result means when useful;
+   - use a compact Markdown table when listing multiple records;
+   - mention filters and scope so the user knows what was counted;
+   - end with one relevant next-step suggestion when it adds value.
+5. Preserve conversational context. Resolve short follow-up questions from earlier messages and tool results.
+6. For write operations, collect missing required fields, summarize the pending change, and use the proper tool. Never claim a write succeeded before the tool confirms it.
+7. Do not expose hidden reasoning or chain-of-thought. The UI already shows a neutral thinking indicator.
+8. Avoid generic capability statements unless the user explicitly asks what you can do.
+9. Keep answers focused: usually 2-5 short paragraphs or a small table, with no unnecessary headings or decorative emoji.
+"""
+
+
+STAGE_LABELS = {
+    "new": "新线索",
+    "contacted": "已联系",
+    "qualified": "已确认意向",
+    "converted": "已转化",
+    "lost": "已流失",
+}
+
+COUNTRY_LABELS = {
+    "CN": "中国",
+    "JP": "日本",
+    "KR": "韩国",
+    "US": "美国",
+    "DE": "德国",
+    "FR": "法国",
+    "GB": "英国",
+    "CA": "加拿大",
+}
+
+COUNTRY_ALIASES = {
+    "中国": "CN",
+    "日本": "JP",
+    "韩国": "KR",
+    "美国": "US",
+    "德国": "DE",
+    "法国": "FR",
+    "英国": "GB",
+    "加拿大": "CA",
+    "china": "CN",
+    "japan": "JP",
+    "korea": "KR",
+    "usa": "US",
+    "germany": "DE",
+    "france": "FR",
+    "uk": "GB",
+    "canada": "CA",
+}
+
+
 @dataclass(frozen=True)
 class ToolCall:
     name: str
@@ -48,10 +110,7 @@ class OpenAICompatibleModelGateway:
         messages = [
             {
                 "role": "system",
-                "content": (
-                    "You are the Mekyro supplier operations assistant. Use tools for business "
-                    "data, never invent records, and answer in the user's language."
-                ),
+                "content": SYSTEM_PROMPT,
             }
         ]
         for item in history:
@@ -83,6 +142,8 @@ class OpenAICompatibleModelGateway:
             "tools": openai_tools(),
             "tool_choice": "auto",
             "stream": False,
+            "temperature": 0.2,
+            "max_tokens": 1200,
         }
         try:
             if self.client is None:
@@ -137,8 +198,32 @@ class DeterministicModelGateway:
                     result = json.loads(str(item["content"]))
                 except (TypeError, ValueError, json.JSONDecodeError):
                     continue
+                tool_name, tool_arguments = self._tool_context(
+                    history, str(item.get("tool_call_id") or "")
+                )
+                if isinstance(result, dict) and isinstance(result.get("stats"), list):
+                    stats = result["stats"]
+                    total = int(result.get("total", 0))
+                    valid_stats = [row for row in stats if isinstance(row, dict)]
+                    if len(valid_stats) == 1 and valid_stats[0].get("stage") == "new":
+                        return AgentPlan(text=(
+                            f"当前共有 **{total} 条线索**，全部处于 **新线索（new）** 阶段，"
+                            "说明这些线索尚未开始联系。\n\n"
+                            "建议下一步先按国家、推荐评分或创建时间筛选一批优先跟进的线索。"
+                        ))
+                    lines = [f"当前共有 **{total} 条线索**，各阶段分布如下：", ""]
+                    for row in valid_stats:
+                        stage = str(row.get("stage") or "unknown")
+                        count = int(row.get("count") or 0)
+                        ratio = (count / total * 100) if total else 0
+                        label = STAGE_LABELS.get(stage, stage)
+                        lines.append(f"- **{label}（{stage}）**：{count} 条，占 {ratio:.1f}%")
+                    lines.extend(["", "可以继续告诉我国家或阶段，我会帮你缩小范围并列出具体线索。"])
+                    return AgentPlan(text="\n".join(lines))
                 if isinstance(result, dict) and isinstance(result.get("results"), list):
                     rows = result["results"]
+                    if tool_name == "lead_list_leads":
+                        return AgentPlan(text=self._lead_summary(result, rows, tool_arguments))
                     if rows and all(isinstance(row, dict) and row.get("name") for row in rows):
                         names = [str(row["name"]) for row in rows]
                         return AgentPlan(
@@ -167,11 +252,55 @@ class DeterministicModelGateway:
             if not isinstance(arguments, dict):
                 return AgentPlan(text="工具参数必须是 JSON 对象。")
             return AgentPlan(tool_calls=(ToolCall(name=name, arguments=arguments),))
-        if any(term in lowered for term in ("线索阶段", "lead stage", "count leads")):
+        matched_country = next(
+            (country for alias, country in COUNTRY_ALIASES.items() if alias in lowered),
+            "",
+        )
+        has_lead_context = (
+            "线索" in normalized
+            or "lead" in lowered
+            or self._history_mentions_leads(history)
+        )
+        if matched_country and has_lead_context:
+            return AgentPlan(
+                tool_calls=(
+                    ToolCall(name="lead_list_leads", arguments={"country": matched_country}),
+                )
+            )
+        if (
+            any(term in lowered for term in ("线索阶段", "各阶段", "阶段分布", "lead stage", "count leads"))
+            or ("线索" in normalized and any(term in normalized for term in ("多少", "几条", "数量", "总数")))
+        ):
             return AgentPlan(tool_calls=(ToolCall(name="lead_count_by_stage"),))
-        if any(term in lowered for term in ("查看线索", "线索列表", "list leads")):
-            return AgentPlan(tool_calls=(ToolCall(name="lead_list_leads"),))
-        if any(term in lowered for term in ("查看库存", "sku 列表", "list skus")):
+        if "线索" in normalized and any(
+            term in normalized for term in ("新增", "新建", "创建", "添加", "录入")
+        ):
+            return AgentPlan(
+                text=(
+                    "可以新增线索。请提供公司名称、商户名称、两位国家代码（例如 CN、US），"
+                    "以及至少一种联系方式（Email、电话或 WhatsApp）；也可以补充联系人、城市和描述。"
+                    "信息齐全后我会生成待确认内容，不会直接写入。"
+                )
+            )
+        if "线索" in normalized and any(
+            term in normalized for term in ("获得", "获取", "寻找", "开发", "怎么找", "怎么办", "如何")
+        ):
+            return AgentPlan(
+                text=(
+                    "获取目标线索时，先明确目标国家、客户类型（批发商、零售商或维修商）、"
+                    "主力产品和采购规模，再在线索模块创建或导入名单并按这些条件筛选。"
+                    "你可以告诉我目标国家、客户类型和预计采购量，我会继续帮你整理筛选条件；"
+                    "当前系统不会自动从外部采集新线索。"
+                )
+            )
+        if "线索" in normalized or "lead" in lowered:
+            arguments: dict[str, str | int] = {}
+            if matched_country:
+                arguments["country"] = matched_country
+            if any(term in normalized for term in ("最新", "最近一条", "最近的", "latest lead")):
+                arguments["page_size"] = 1
+            return AgentPlan(tool_calls=(ToolCall(name="lead_list_leads", arguments=arguments),))
+        if any(term in lowered for term in ("查看库存", "库存", "sku 列表", "list skus", "stock")):
             return AgentPlan(tool_calls=(ToolCall(name="product_list_skus"),))
         if any(
             term in lowered
@@ -190,4 +319,93 @@ class DeterministicModelGateway:
             return AgentPlan(tool_calls=(ToolCall(name="product_list_products"),))
         if any(term in lowered for term in ("查看配置", "workspace config", "supplier profile")):
             return AgentPlan(tool_calls=(ToolCall(name="config_get_profile"),))
-        return AgentPlan(text="我可以查询线索、商品和库存，也可在你确认后执行业务写操作。")
+        if any(
+            term in normalized
+            for term in ("业务写操作", "写操作", "怎么执行", "如何执行", "怎么触发", "如何触发")
+        ):
+            return AgentPlan(
+                text=(
+                    "直接告诉我“对象 + 动作 + 具体内容”即可，例如："
+                    "“把线索 ABC 的阶段改为已联系”“创建商品 iPhone 15，价格 5000 元”"
+                    "或“SKU IP15-BLK 库存增加 10”。涉及新增、修改、删除或库存调整时，"
+                    "我会先展示待执行内容；你明确确认后才会写入。你现在想操作线索、商品还是库存？"
+                )
+            )
+        if any(
+            term in normalized
+            for term in ("怎么使用", "如何使用", "怎么用", "你能做什么", "可以做什么", "使用方法")
+        ):
+            return AgentPlan(
+                text=(
+                    "你可以直接用自然语言提问或下达任务。例如："
+                    "“有多少条线索”“日本市场有哪些线索”“有哪些商品”“查看库存”。"
+                    "需要修改数据时，请说明对象、动作和具体内容，我会先让你确认再执行。"
+                )
+            )
+        return AgentPlan(
+            text=(
+                "我还不能确定你要处理什么。请补充对象和动作，例如查询线索、查看商品、"
+                "检查库存，或说明要新增、修改的具体内容。"
+            )
+        )
+
+    @staticmethod
+    def _tool_context(history: list[dict], tool_call_id: str) -> tuple[str, dict]:
+        for item in reversed(history):
+            for call in item.get("tool_calls") or []:
+                if str(call.get("id") or "") != tool_call_id:
+                    continue
+                function = call.get("function") or {}
+                raw_arguments = function.get("arguments") or "{}"
+                try:
+                    arguments = (
+                        json.loads(raw_arguments)
+                        if isinstance(raw_arguments, str)
+                        else raw_arguments
+                    )
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    arguments = {}
+                return str(function.get("name") or ""), arguments if isinstance(arguments, dict) else {}
+        return "", {}
+
+    @staticmethod
+    def _history_mentions_leads(history: list[dict]) -> bool:
+        for item in history[-8:]:
+            content = str(item.get("content") or "").lower()
+            if item.get("role") == "user" and ("线索" in content or "lead" in content):
+                return True
+            for call in item.get("tool_calls") or []:
+                function = call.get("function") or {}
+                if str(function.get("name") or "").startswith("lead_"):
+                    return True
+        return False
+
+    @staticmethod
+    def _lead_summary(result: dict, rows: list, arguments: dict) -> str:
+        total = int(result.get("total", len(rows)))
+        country_code = str(arguments.get("country") or "").upper()
+        country = COUNTRY_LABELS.get(country_code, country_code)
+        scope = f"地区为{country}的" if country else "当前工作区的"
+        if total == 0:
+            return f"目前没有查询到{scope}线索。你可以换一个国家或取消筛选后再查。"
+
+        lines = [f"目前{scope}线索共有 **{total} 条**。"]
+        visible_rows = [row for row in rows if isinstance(row, dict)][:10]
+        if visible_rows:
+            lines.extend([
+                "",
+                "| 商家名称 | 企业名称 | 阶段 | 推荐评分 |",
+                "| --- | --- | --- | ---: |",
+            ])
+            for row in visible_rows:
+                merchant = str(row.get("merchant_name") or "-").replace("|", "\\|")
+                company = str(row.get("company_name") or "-").replace("|", "\\|")
+                stage = str(row.get("stage") or "-")
+                stage_text = f"{STAGE_LABELS.get(stage, stage)}（{stage}）" if stage != "-" else "-"
+                score = row.get("recommendation_score")
+                score_text = "-" if score is None else str(score)
+                lines.append(f"| {merchant} | {company} | {stage_text} | {score_text} |")
+        if total > len(visible_rows):
+            lines.extend(["", f"以上展示前 {len(visible_rows)} 条，共 {total} 条。"])
+        lines.extend(["", "需要的话，我可以继续按阶段、推荐评分或最近联系时间帮你筛选。"])
+        return "\n".join(lines)

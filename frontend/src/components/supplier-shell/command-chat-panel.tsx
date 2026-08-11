@@ -27,6 +27,7 @@ import {
 } from "@/lib/agent/chat";
 import { getCurrentAuthUser } from "@/lib/auth/core";
 import {
+  continueChatRequest,
   isLegacyProductsOnboardingMessage,
   onboardingSessionStore,
   type OnboardingSessionIdentity,
@@ -221,10 +222,22 @@ async function sendOnboardingSessionRequest(
     return { ...snapshot, messages, isStreaming: true };
   }, identity);
 
+  const continuedRequest = continueChatRequest(
+    request,
+    onboardingSessionStore.getActiveSnapshot().conversationId,
+  );
+
   try {
-    for await (const event of streamChat(request)) {
+    for await (const event of streamChat(continuedRequest)) {
       if (!onboardingSessionStore.isCurrent(identity)) return;
       switch (event.type) {
+        case "conversation":
+          updateOnboardingSession((snapshot) => ({
+            ...snapshot,
+            conversationId: event.data.conversation_id,
+          }), identity);
+          break;
+
         case "text":
           assistantHasContent = true;
           updateOnboardingSession((snapshot) => ({
@@ -324,13 +337,13 @@ async function sendOnboardingSessionRequest(
               || isFinish
               || actionType === "pause_onboarding"
               || event.data.status === "paused"
-              || (isAcknowledgedCompletion && !explicitStart);
+              || (event.data.status === "completed" && !explicitStart);
             const shouldReactivate = explicitStart
               || actionType === "continue_onboarding"
               || actionType === "restart_onboarding"
               || event.data.status === "in_progress"
-              || (actionType === "resume_onboarding" && event.data.status !== "paused" && !isAcknowledgedCompletion)
-              || (actionType === "select_onboarding_workspace" && event.data.status !== "paused" && !isAcknowledgedCompletion);
+              || (actionType === "resume_onboarding" && !["paused", "completed"].includes(event.data.status))
+              || (actionType === "select_onboarding_workspace" && !["paused", "completed"].includes(event.data.status));
 
             let messages = snapshot.messages;
             const resolvedCardId = request.action?.card_id;
@@ -731,7 +744,15 @@ function OnboardingStepTaskContent({
   const step = message.onboardingStep;
   const [profileName, setProfileName] = useState("");
   const [profileDescription, setProfileDescription] = useState("");
-  const [leadRequirement, setLeadRequirement] = useState("");
+  const [leadIndustry, setLeadIndustry] = useState("");
+  const [leadSubject, setLeadSubject] = useState("");
+  const [leadCountries, setLeadCountries] = useState("");
+  const [leadCustomerFeatures, setLeadCustomerFeatures] = useState("");
+  const [leadProducts, setLeadProducts] = useState("");
+  const [leadExclusions, setLeadExclusions] = useState("");
+  const [leadContactRequirements, setLeadContactRequirements] = useState(
+    "公开 Email、电话或 WhatsApp 任意一种即可，不得推测或补全。",
+  );
   const [formError, setFormError] = useState("");
   if (!step) return null;
   const steps = ["profile", "site", "leads"];
@@ -747,12 +768,26 @@ function OnboardingStepTaskContent({
   }
 
   function submitLeadRequirement() {
-    if (!leadRequirement.trim()) {
-      setFormError(isZh ? "请填写获客需求。" : "Lead acquisition requirement is required.");
+    if (
+      !leadIndustry.trim()
+      || !leadSubject.trim()
+      || !leadCountries.trim()
+      || !leadCustomerFeatures.trim()
+      || !leadProducts.trim()
+    ) {
+      setFormError(isZh ? "请完整填写所有必填获客字段。" : "Complete all required acquisition fields.");
       return;
     }
     setFormError("");
-    onStepDraftSubmit("leads", { requirement_description: leadRequirement.trim() });
+    onStepDraftSubmit("leads", {
+      target_industry: leadIndustry.trim(),
+      target_subject: leadSubject.trim(),
+      target_countries: leadCountries.trim(),
+      customer_features: leadCustomerFeatures.trim(),
+      product_whitelist: leadProducts.trim(),
+      exclusions: leadExclusions.trim(),
+      contact_requirements: leadContactRequirements.trim(),
+    });
   }
 
   return (
@@ -894,11 +929,81 @@ function OnboardingStepTaskContent({
       {isActiveStep && step.currentStep === "leads" ? (
         <div className={styles.onboardingSiteDetails}>
           <label>
-            <span>{isZh ? "总体获客需求" : "Lead acquisition requirement"}</span>
-            <Textarea value={leadRequirement} maxLength={4000} disabled={actionsDisabled} onChange={(event) => setLeadRequirement(event.target.value)} />
+            <span>{isZh ? "目标行业 *" : "Target industry *"}</span>
+            <Input
+              value={leadIndustry}
+              maxLength={500}
+              placeholder={isZh ? "例如：二手及翻新手机" : "e.g. Used and refurbished phones"}
+              disabled={actionsDisabled}
+              onChange={(event) => setLeadIndustry(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>{isZh ? "目标主体 *" : "Target subject *"}</span>
+            <Textarea
+              value={leadSubject}
+              maxLength={1000}
+              placeholder={isZh ? "例如：批发商、分销商、零售商和回收商" : "e.g. Wholesalers, distributors, retailers"}
+              disabled={actionsDisabled}
+              onChange={(event) => setLeadSubject(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>{isZh ? "目标国家或地区 *" : "Target countries or regions *"}</span>
+            <Input
+              value={leadCountries}
+              maxLength={500}
+              placeholder={isZh ? "例如：英国、德国、美国；不限制可填“不限”" : "e.g. UK, Germany, US; or Any"}
+              disabled={actionsDisabled}
+              onChange={(event) => setLeadCountries(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>{isZh ? "目标客户特征 *" : "Customer features *"}</span>
+            <Textarea
+              value={leadCustomerFeatures}
+              maxLength={2000}
+              placeholder={isZh ? "经营品类、采购场景、销售渠道、目标人群等" : "Products, buying scenarios, channels and audiences"}
+              disabled={actionsDisabled}
+              onChange={(event) => setLeadCustomerFeatures(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>{isZh ? "我方产品白名单 *" : "Product whitelist *"}</span>
+            <Textarea
+              value={leadProducts}
+              maxLength={2000}
+              placeholder={isZh ? "每行一个产品；没有可推荐产品时填写“无”" : "One product per line; enter None if empty"}
+              disabled={actionsDisabled}
+              onChange={(event) => setLeadProducts(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>{isZh ? "排除对象" : "Exclusions"}</span>
+            <Textarea
+              value={leadExclusions}
+              maxLength={2000}
+              placeholder={isZh ? "每行一个排除条件；系统默认排除无公开联系方式及无直接证据的主体" : "One exclusion per line"}
+              disabled={actionsDisabled}
+              onChange={(event) => setLeadExclusions(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>{isZh ? "联系方式要求" : "Contact requirements"}</span>
+            <Textarea
+              value={leadContactRequirements}
+              maxLength={1000}
+              disabled={actionsDisabled}
+              onChange={(event) => setLeadContactRequirements(event.target.value)}
+            />
           </label>
           {formError ? <small role="alert">{formError}</small> : null}
-          <Button type="button" disabled={actionsDisabled} onClick={submitLeadRequirement}>{isZh ? "生成确认卡" : "Create review card"}</Button>
+          <p className={styles.onboardingCredentialHint}>
+            {isZh
+              ? "确认后将生成公开线索 Agent 可直接读取的 Workspace Prompt；输出语言固定为简体中文，并启用公开证据质量约束。"
+              : "Confirmation creates a Workspace Prompt compatible with the public lead agent."}
+          </p>
+          <Button type="button" disabled={actionsDisabled} onClick={submitLeadRequirement}>{isZh ? "生成获客配置确认卡" : "Create acquisition review card"}</Button>
         </div>
       ) : null}
       {isActiveStep && step.currentStep !== "profile" ? (
@@ -1064,14 +1169,12 @@ function UserAvatar() {
 }
 
 function getAssistantMessageBubbleClass(message: RailMessage) {
-  const isWelcome = message.presentation === "onboarding_welcome";
   const isStep = message.presentation === "onboarding_step";
   const isComplete = message.presentation === "onboarding_complete";
   return cn(
     styles.messageBubble,
     styles.bubbleLeft,
-    (message.onboardingCard || isWelcome || isStep || isComplete) && styles.messageBubbleWithCard,
-    isWelcome && styles.onboardingWelcomeCard,
+    (message.onboardingCard || isStep || isComplete) && styles.messageBubbleWithCard,
     isStep && styles.onboardingStepTaskCard,
     isComplete && styles.onboardingCompletionCard,
   );
@@ -1210,10 +1313,27 @@ export function CommandChatPanel({
     ]);
     setRailDraft("");
 
+    const continuedRequest = continueChatRequest(
+      request,
+      onboardingSessionStore.getActiveSnapshot().conversationId,
+    );
+
     try {
       // 流式接收 SSE
-      for await (const event of streamChat(request)) {
+      for await (const event of streamChat(continuedRequest)) {
         switch (event.type) {
+          case "conversation":
+            {
+              const identity = onboardingSessionStore.getActiveIdentity();
+              if (identity) {
+                updateOnboardingSession((snapshot) => ({
+                  ...snapshot,
+                  conversationId: event.data.conversation_id,
+                }), identity);
+              }
+            }
+            break;
+
           case "text":
             assistantHasContent = true;
             setRailMessages((prev) =>
@@ -1284,7 +1404,11 @@ export function CommandChatPanel({
                 ? prev.map((m) =>
                     m.id === assistantId ? { ...m, isStreaming: false } : m,
                   )
-                : prev.filter((m) => m.id !== assistantId),
+                : prev.map((m) =>
+                    m.id === assistantId
+                      ? { ...m, text: requestFailed, isStreaming: false }
+                      : m,
+                  ),
             );
             break;
 
@@ -1541,7 +1665,7 @@ export function CommandChatPanel({
     void ensureOnboardingAutoResume(authUserId);
   }, [authUserId]);
 
-  const onboardingContextPanel = (
+  const onboardingContextPanel = onboardingSession.dismissed ? null : (
     <OnboardingContextPanel
       context={onboardingContext}
       disabled={isStreaming}
@@ -1599,7 +1723,6 @@ export function CommandChatPanel({
               data-chat-message-id={message.id}
               className={cn(
                 message.speaker === "assistant" ? styles.messageRowLeft : styles.messageRowRight,
-                message.presentation === "onboarding_welcome" && styles.onboardingWelcomeRow,
                 message.presentation === "onboarding_step" && styles.onboardingStepTaskRow,
                 message.presentation === "onboarding_complete" && styles.onboardingCompletionRow,
               )}
@@ -1689,7 +1812,6 @@ export function CommandChatPanel({
                 data-chat-message-id={message.id}
                 className={cn(
                   message.speaker === "assistant" ? styles.messageRowLeft : styles.messageRowRight,
-                  message.presentation === "onboarding_welcome" && styles.onboardingWelcomeRow,
                   message.presentation === "onboarding_step" && styles.onboardingStepTaskRow,
                   message.presentation === "onboarding_complete" && styles.onboardingCompletionRow,
                 )}
@@ -1784,7 +1906,6 @@ export function CommandChatPanel({
               data-chat-message-id={message.id}
               className={cn(
                 message.speaker === "assistant" ? styles.messageRowLeft : styles.messageRowRight,
-                message.presentation === "onboarding_welcome" && styles.onboardingWelcomeRow,
                 message.presentation === "onboarding_step" && styles.onboardingStepTaskRow,
                 message.presentation === "onboarding_complete" && styles.onboardingCompletionRow,
               )}

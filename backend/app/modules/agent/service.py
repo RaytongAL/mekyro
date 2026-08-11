@@ -554,7 +554,9 @@ async def _model_loop(
             return
         _store_model_plan(session, conversation.id, plan)
         await session.commit()
-        if plan.text:
+        # Tool-call preambles such as "let me check" add noise. Keep the UI in its
+        # thinking state until the model has the real tool result to summarize.
+        if plan.text and not plan.tool_calls:
             yield sse("text", {"text": plan.text})
         if not plan.tool_calls:
             return
@@ -806,6 +808,25 @@ def _onboarding_context(context: WorkspaceContext) -> dict:
     }
 
 
+def _onboarding_prompt(state: dict) -> str:
+    step = state.get("current_step")
+    if state.get("status") == "not_started":
+        return (
+            "欢迎使用 Mekyro。为了让 AI 助理更准确地理解你的业务，"
+            "接下来会用三个简短步骤完成初始化：企业资料、网站信息和获客需求。\n\n"
+            "先从企业资料开始，请填写企业名称和企业介绍。所有信息都会先由你确认，再正式保存。"
+        )
+    prompts = {
+        "profile": "请填写企业名称和企业介绍。信息整理完成后，我会生成确认内容供你检查。",
+        "site": "企业资料已经确认。接下来请选择网站类型，并填写对应的网站信息。",
+        "leads": (
+            "最后，请填写目标行业、客户类型、目标国家或地区以及希望推广的产品。"
+            "我会把这些内容整理成获客需求供你确认。"
+        ),
+    }
+    return prompts.get(str(step), "入驻信息已经完成，你可以继续使用 AI 助理。")
+
+
 def _public_onboarding_card(card: dict, execution: dict | None = None) -> dict:
     public = {key: value for key, value in card.items() if key != "operation"}
     execution_status = str((execution or {}).get("status") or "")
@@ -999,9 +1020,35 @@ async def _onboarding_action(
             yield item
         return
     if action_type in {"resume_onboarding", "select_onboarding_workspace"}:
-        conversation.status = "onboarding"
-        await session.commit()
         state = normalize_state(context.workspace.onboarding_state)
+        if action_type == "resume_onboarding" and state["status"] == "not_started":
+            previous_onboarding = await session.scalar(
+                select(AgentConversation.id)
+                .where(
+                    AgentConversation.workspace_id == context.workspace.id,
+                    AgentConversation.user_id == context.user.id,
+                    AgentConversation.id != conversation.id,
+                    AgentConversation.status == "onboarding",
+                )
+                .limit(1)
+            )
+            if previous_onboarding:
+                paused_state, pause_error = await _run_onboarding_direct(
+                    "onboarding_pause",
+                    {},
+                    conversation=conversation,
+                    context=context,
+                    session=session,
+                    settings=settings,
+                )
+                if not pause_error and paused_state:
+                    state = paused_state
+        conversation.status = (
+            "onboarding"
+            if state["status"] in {"not_started", "in_progress"}
+            else "active"
+        )
+        await session.commit()
         step_state = state["steps"].get(state["current_step"], {})
         pending = step_state.get("pending_card")
         requirement = str(
@@ -1035,20 +1082,14 @@ async def _onboarding_action(
             yield sse(
                 "text",
                 {
-                    "text": (
-                        "入驻已完成。"
-                        if state["status"] == "completed"
-                        else f"请继续入驻步骤：{state['current_step']}。"
-                    )
+                    "text": _onboarding_prompt(state)
+                    if state["status"] != "completed"
+                    else "入驻信息已经完成。"
                 },
             )
         return
     mapping = {
         "pause_onboarding": ("onboarding_pause", {}),
-        "abandon_onboarding": (
-            "onboarding_restart",
-            {"confirmed": action.get("confirmed") is True},
-        ),
         "continue_onboarding": ("onboarding_continue", {}),
         "restart_onboarding": (
             "onboarding_restart",
@@ -1115,6 +1156,25 @@ async def _onboarding_action(
             session=session,
             settings=settings,
         )
+    elif action_type == "abandon_onboarding":
+        result, error = await _run_onboarding_direct(
+            "onboarding_restart",
+            {"confirmed": action.get("confirmed") is True},
+            conversation=conversation,
+            context=context,
+            session=session,
+            settings=settings,
+        )
+        if not error:
+            result, error = await _run_onboarding_direct(
+                "onboarding_pause",
+                {},
+                conversation=conversation,
+                context=context,
+                session=session,
+                settings=settings,
+            )
+        tool_name = "onboarding_pause"
     elif action_type in mapping:
         tool_name, arguments = mapping[action_type]
         result, error = await _run_onboarding_direct(
@@ -1135,14 +1195,17 @@ async def _onboarding_action(
         yield _public_error(error, "入驻操作未完成。", retryable=error.endswith("INTERNAL_ERROR"))
         return
     await session.refresh(context.workspace)
+    state = normalize_state(context.workspace.onboarding_state)
     if (
         action_type == "finish_onboarding"
         and (result or {}).get("completion_acknowledged")
-    ) or action_type == "abandon_onboarding":
+    ) or action_type == "abandon_onboarding" or state["status"] == "paused":
         conversation.status = "active"
+    elif state["status"] in {"not_started", "in_progress"}:
+        conversation.status = "onboarding"
+    if conversation in session.dirty:
         await session.commit()
     yield sse("onboarding_context", _onboarding_context(context))
-    state = normalize_state(context.workspace.onboarding_state)
     pending = state["steps"].get(state["current_step"], {}).get("pending_card")
     if pending:
         current_step_state = state["steps"].get(state["current_step"], {})
@@ -1179,7 +1242,7 @@ async def _natural_onboarding(
         "resume onboarding",
     }:
         yield sse("onboarding_context", _onboarding_context(context))
-        yield sse("text", {"text": f"请继续入驻步骤：{state['current_step']}。"})
+        yield sse("text", {"text": _onboarding_prompt(state)})
         return
     if state["status"] not in {"in_progress", "not_started"}:
         return
@@ -1321,9 +1384,10 @@ async def chat_stream(
                 yield event
         elif message:
             state = normalize_state(context.workspace.onboarding_state)
-            if conversation.status == "onboarding" or (
-                state["status"] in {"in_progress", "not_started"}
-                and any(value in message.lower() for value in ("入驻", "onboarding"))
+            onboarding_is_active = state["status"] in {"in_progress", "not_started"}
+            if onboarding_is_active and (
+                conversation.status == "onboarding"
+                or any(value in message.lower() for value in ("入驻", "onboarding"))
             ):
                 async for event in _natural_onboarding(
                     message,

@@ -211,6 +211,84 @@ def test_shopify_onboarding_credentials_are_redacted_revalidated_and_applied_by_
     assert decrypt_secret(config.api_secret_encrypted, Settings()) == api_secret
 
 
+def test_structured_lead_onboarding_builds_lead_agent_prompt(
+    client: TestClient,
+    newlife_token: str,
+):
+    headers = auth_header(newlife_token)
+    base = _base()
+    _advance_to_site(client, newlife_token)
+    site = client.put(
+        f"{base}/steps/site/draft",
+        headers=headers,
+        json={
+            "answers": {
+                "site_variant": "self_hosted",
+                "site_url": "https://supplier.example",
+                "site_details": "Next.js storefront",
+            }
+        },
+    ).json()
+    site_card_id = site["steps"]["site"]["pending_card"]["card_id"]
+    assert client.post(
+        f"{base}/steps/site/apply", headers=headers, json={"card_id": site_card_id}
+    ).status_code == 200
+    assert client.post(
+        f"{base}/steps/site/confirm", headers=headers, json={"confirmed": True}
+    ).status_code == 200
+
+    draft = client.put(
+        f"{base}/steps/leads/draft",
+        headers=headers,
+        json={
+            "answers": {
+                "target_industry": "二手及翻新手机",
+                "target_subject": "批发商、分销商和零售商",
+                "target_countries": "英国、德国、美国",
+                "customer_features": "经营二手手机并有公开批发或采购场景",
+                "product_whitelist": "iPhone 15\nSamsung Galaxy S24",
+                "exclusions": "个人卖家\n目录和资讯站",
+                "contact_requirements": "公开 Email 或 WhatsApp 任意一种即可。",
+            }
+        },
+    )
+    assert draft.status_code == 200
+    card = draft.json()["steps"]["leads"]["pending_card"]
+    assert card["title"] == "公开线索发现配置预览"
+    assert {field["key"] for field in card["fields"]} >= {
+        "target_industry",
+        "target_subject",
+        "product_whitelist",
+    }
+    assert client.post(
+        f"{base}/steps/leads/apply",
+        headers=headers,
+        json={"card_id": card["card_id"]},
+    ).status_code == 200
+
+    async def read_prompt() -> str:
+        async with client.app.state.database.sessions() as session:
+            workspace = await session.get(Workspace, IDS["workspace_newlife"])
+            assert workspace is not None
+            return workspace.prompt
+
+    prompt = asyncio.run(read_prompt())
+    for section in (
+        "【目标行业】",
+        "【目标主体】",
+        "【目标国家或地区】",
+        "【目标客户特征】",
+        "【我方产品白名单】",
+        "【排除对象】",
+        "【联系方式要求】",
+        "【输出语言】",
+        "【质量要求】",
+    ):
+        assert section in prompt
+    assert "- iPhone 15" in prompt
+    assert "- Samsung Galaxy S24" in prompt
+
+
 def test_abandon_requires_confirmation_and_resets_only_onboarding_state(
     client: TestClient,
     newlife_token: str,
@@ -251,7 +329,7 @@ def test_abandon_requires_confirmation_and_resets_only_onboarding_state(
             },
         )
     )
-    assert _event(abandoned, "onboarding_context")["status"] == "not_started"
+    assert _event(abandoned, "onboarding_context")["status"] == "paused"
     workspace = client.get(workspace_url, headers=headers).json()
     assert workspace["name"] == "Parity Supplier"
     assert workspace["description"] == "Onboarding parity"

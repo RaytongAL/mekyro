@@ -5277,8 +5277,9 @@
 
 .supplierSettingsFeedback {
   display: grid;
+  flex: 1;
   gap: 10px;
-  padding: 24px 28px 0;
+  max-width: 560px;
 }
 
 .supplierSettingsSuccess {
@@ -5351,7 +5352,9 @@
 }
 
 .supplierSettingsActions {
+  align-items: center;
   display: flex;
+  gap: 16px;
   justify-content: flex-end;
   padding: 20px 28px 24px;
 }
@@ -5433,6 +5436,8 @@
   }
 
   .supplierSettingsActions {
+    align-items: stretch;
+    flex-direction: column;
     padding: 18px;
   }
 

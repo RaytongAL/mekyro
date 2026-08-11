@@ -5,7 +5,11 @@ import pytest
 
 from app.core.config import get_settings
 from app.main import create_app
-from app.modules.agent.gateway import ModelGatewayError, OpenAICompatibleModelGateway
+from app.modules.agent.gateway import (
+    DeterministicModelGateway,
+    ModelGatewayError,
+    OpenAICompatibleModelGateway,
+)
 from app.modules.agent.registry import TOOLS, openai_tools
 
 
@@ -14,6 +18,7 @@ def test_agent_openai_tool_schemas_cover_complete_registry():
     assert {item["function"]["name"] for item in tools} == set(TOOLS)
     assert all(item["function"]["parameters"]["type"] == "object" for item in tools)
     by_name = {item["function"]["name"]: item["function"]["parameters"] for item in tools}
+    assert by_name["lead_list_leads"]["properties"]["country"]["maxLength"] == 2
     assert by_name["lead_get_detail"]["required"] == ["lead_id"]
     assert by_name["product_create"]["required"] == ["name"]
     assert by_name["product_adjust_stock"]["required"] == ["sku_id", "type", "quantity"]
@@ -85,6 +90,11 @@ async def test_openai_compatible_gateway_sends_history_tools_and_parses_tool_cal
     assert captured["authorization"] == "Bearer secret-agent-key"
     assert captured["payload"]["model"] == "test-model"
     assert captured["payload"]["stream"] is False
+    assert captured["payload"]["temperature"] == 0.2
+    assert captured["payload"]["max_tokens"] == 1200
+    system_prompt = captured["payload"]["messages"][0]["content"]
+    assert "Markdown table" in system_prompt
+    assert "Preserve conversational context" in system_prompt
     assert len(captured["payload"]["tools"]) == len(TOOLS)
     assert captured["payload"]["messages"][-1] == {"role": "user", "content": "查一下库存"}
     assert all(item["role"] != "tool" for item in captured["payload"]["messages"])
@@ -139,6 +149,72 @@ async def test_openai_compatible_gateway_sends_tool_results_for_continuation():
     assert captured["payload"]["messages"][-2:] == history[-2:]
     assert plan.text == "当前库存为 12 件。"
     assert plan.tool_calls == ()
+
+
+@pytest.mark.asyncio
+async def test_deterministic_gateway_explains_lead_totals_and_filtered_rows():
+    gateway = DeterministicModelGateway()
+    totals = await gateway.plan(
+        message="",
+        history=[
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "call-count",
+                        "type": "function",
+                        "function": {"name": "lead_count_by_stage", "arguments": "{}"},
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call-count",
+                "content": '{"total":121,"stats":[{"stage":"new","count":121,"ratio":1}]}',
+            },
+        ],
+    )
+    assert "**121 条线索**" in totals.text
+    assert "尚未开始联系" in totals.text
+    assert "建议下一步" in totals.text
+
+    filtered = await gateway.plan(
+        message="",
+        history=[
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "call-jp",
+                        "type": "function",
+                        "function": {
+                            "name": "lead_list_leads",
+                            "arguments": '{"country":"JP"}',
+                        },
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call-jp",
+                "content": (
+                    '{"total":1,"results":[{"merchant_name":"Laifen Japan",'
+                    '"company_name":"Laifen Japan","stage":"new",'
+                    '"recommendation_score":92}]}'
+                ),
+            },
+        ],
+    )
+    assert "地区为日本的线索共有 **1 条**" in filtered.text
+    assert "| 商家名称 | 企业名称 | 阶段 | 推荐评分 |" in filtered.text
+    assert "Laifen Japan" in filtered.text
+
+    follow_up = await gateway.plan(
+        message="地区是日本的有几个",
+        history=[{"role": "user", "content": "有多少条线索？"}],
+    )
+    assert follow_up.tool_calls[0].name == "lead_list_leads"
+    assert follow_up.tool_calls[0].arguments == {"country": "JP"}
 
 
 @pytest.mark.asyncio

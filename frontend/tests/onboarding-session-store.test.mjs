@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  continueChatRequest,
   createOnboardingSessionStore,
   isLegacyProductsOnboardingMessage,
   onboardingWorkspaceSessionKey,
@@ -137,6 +138,7 @@ test("切换用户会重置完整 onboarding 快照并创建新恢复请求", as
   assert.equal(startCount, 2);
   assert.deepEqual(store.getSnapshotForUser(202), {
     context: null,
+    conversationId: null,
     dismissed: false,
     completionNotice: null,
     messages: [],
@@ -315,4 +317,17 @@ test("Shopify 凭证仅保存在页面内存，刷新后的 store 不恢复凭�
   refreshed.activate(603);
   assert.equal(refreshed.readWorkspaceId(603), 63);
   assert.deepEqual(refreshed.getActiveSnapshot().siteDraft, createEmptyOnboardingSiteDraft());
+});
+
+test("onboarding requests continue the backend conversation", () => {
+  const initial = { action: { type: "resume_onboarding" } };
+  assert.deepEqual(continueChatRequest(initial, null), initial);
+  assert.deepEqual(continueChatRequest({ message: "Acme" }, "conversation-1"), {
+    message: "Acme",
+    conversation_id: "conversation-1",
+  });
+  assert.deepEqual(continueChatRequest({ message: "Acme", conversation_id: "conversation-2" }, "conversation-1"), {
+    message: "Acme",
+    conversation_id: "conversation-2",
+  });
 });

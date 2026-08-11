@@ -82,6 +82,31 @@ def _page(arguments: dict, *, maximum: int = 100) -> tuple[int, int, int]:
     return page, page_size, (page - 1) * page_size
 
 
+def _country_code(value: object) -> str:
+    normalized = str(value or "").strip().lower()
+    aliases = {
+        "中国": "CN",
+        "china": "CN",
+        "日本": "JP",
+        "japan": "JP",
+        "韩国": "KR",
+        "korea": "KR",
+        "美国": "US",
+        "usa": "US",
+        "united states": "US",
+        "德国": "DE",
+        "germany": "DE",
+        "法国": "FR",
+        "france": "FR",
+        "英国": "GB",
+        "uk": "GB",
+        "united kingdom": "GB",
+        "加拿大": "CA",
+        "canada": "CA",
+    }
+    return aliases.get(normalized, normalized.upper())
+
+
 async def _lead_tool(
     name: str,
     arguments: dict,
@@ -93,7 +118,7 @@ async def _lead_tool(
         page, page_size, offset = _page(arguments, maximum=50)
         filters = [Lead.workspace_id == workspace_id]
         if arguments.get("country"):
-            filters.append(Lead.country == str(arguments["country"]).upper())
+            filters.append(Lead.country == _country_code(arguments["country"]))
         if arguments.get("stage"):
             filters.append(Lead.stage == arguments["stage"])
         total = await session.scalar(select(func.count()).select_from(Lead).where(*filters)) or 0
