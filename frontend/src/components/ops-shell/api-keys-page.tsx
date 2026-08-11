@@ -20,6 +20,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { copyText } from "@/lib/clipboard";
 
 import { BackendPageSizeSelect } from "./backend-select";
 import styles from "./ops-shell.module.css";
@@ -226,12 +227,9 @@ export function ApiKeysPage() {
 
   async function copyKey() {
     if (!createdKey) return;
-    try {
-      await navigator.clipboard.writeText(createdKey.key);
+    if (await copyText(createdKey.key)) {
       setKeyCopied(true);
       setTimeout(() => setKeyCopied(false), 2500);
-    } catch {
-      setKeyCopied(true);
     }
   }
 

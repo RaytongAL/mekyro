@@ -25,6 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { api, type ApiResponse } from "@/lib/api";
+import { copyText } from "@/lib/clipboard";
 import { BackendPageSizeSelect } from "./backend-select";
 import { TruncatedCell } from "./truncated-cell";
 import { SortButton } from "./sort-button";
@@ -236,12 +237,12 @@ export function SupplierAccountsPage() {
     }
   }
 
-  function copyPassword() {
+  async function copyPassword() {
     if (!createdAccount?.password) return;
-    navigator.clipboard.writeText(createdAccount.password).then(() => {
+    if (await copyText(createdAccount.password)) {
       setPasswordCopied(true);
       setTimeout(() => setPasswordCopied(false), 2000);
-    }).catch(() => {});
+    }
   }
 
   /* ---- 编辑 ---- */
