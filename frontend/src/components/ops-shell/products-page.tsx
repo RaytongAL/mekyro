@@ -595,6 +595,14 @@ export function ProductsPage() {
 
   async function handleInventoryOp() {
     if (!invTarget) return; const token = getToken(); if (!token) return;
+    if (!Number.isSafeInteger(invQuantity) || invQuantity <= 0) {
+      setInvError(locale === "zh-CN" ? "数量必须为大于 0 的整数。" : "Quantity must be a positive integer.");
+      return;
+    }
+    if (invType === "outbound" && invQuantity > invTarget.currentStock) {
+      setInvError(t("ops.productsInventoryExceedStock", { stock: invTarget.currentStock }));
+      return;
+    }
     const quantity = invType === "outbound" ? -Math.abs(invQuantity) : Math.abs(invQuantity);
     setInvSubmitting(true); setInvError("");
     try {
@@ -604,8 +612,8 @@ export function ProductsPage() {
         body: JSON.stringify({
           type: invType,
           quantity,
-          reason: invReason,
-          reference_id: invRefId,
+          reason: invReason.trim() || "Manual adjustment",
+          reference_id: invRefId.trim(),
           created_by: "admin",
         }),
       });
@@ -614,7 +622,10 @@ export function ProductsPage() {
         setInvTarget(null);
         refreshAllSkus();
       } else {
-        setInvError(data?.message ?? t("ops.productsFetchFailed"));
+        const message = String(data?.message || "");
+        setInvError(message.includes("stock negative")
+          ? t("ops.productsInventoryExceedStock", { stock: invTarget.currentStock })
+          : message || (locale === "zh-CN" ? "出入库操作失败，请重试。" : "Inventory operation failed. Try again."));
       }
     } catch {
       setInvError(t("ops.productsFetchFailed"));
@@ -1606,6 +1617,7 @@ export function ProductsPage() {
               value={invQuantity}
               onChange={(e) => setInvQuantity(Math.max(1, Number(e.target.value)))}
               min={1}
+              step={1}
             />
             {invType === "outbound" && invQuantity > (invTarget?.currentStock ?? 0) ? (
               <p style={{ color: "#c62828", fontSize: 12, margin: "4px 0 0" }}>{t("ops.productsInventoryExceedStock", { stock: invTarget?.currentStock ?? 0 })}</p>

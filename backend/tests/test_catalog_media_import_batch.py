@@ -1,7 +1,7 @@
 from io import BytesIO
 
 from fastapi.testclient import TestClient
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 from app.modules.catalog import import_router
 from app.scripts.seed_fake_db import IDS
@@ -128,6 +128,18 @@ def test_product_import_template_preview_and_confirm(
     template = client.get(f"{base}/product-import/template", headers=headers)
     assert template.status_code == 200
     assert template.content.startswith(b"PK")
+    template_workbook = load_workbook(BytesIO(template.content))
+    template_sheet = template_workbook["商品导入模板"]
+    assert template_workbook.sheetnames == ["商品导入模板"]
+    assert template_sheet["A3"].value == "商品名称*"
+    assert template_sheet["O3"].value == "SKU图片"
+    assert template_sheet.max_row == 4
+    template_workbook.close()
+
+    template_rows, template_errors, template_total = import_router._parse_workbook(template.content)
+    assert template_total == 1
+    assert len(template_rows) == 1
+    assert template_errors == []
 
     workbook = _workbook_bytes(
         [

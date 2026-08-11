@@ -126,8 +126,11 @@ export function ImportDialog({ open, onOpenChange, workspaceId, apiPrefix, onImp
       const a = document.createElement("a");
       a.href = url;
       a.download = "product_import_template.xlsx";
+      a.style.display = "none";
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
       setError(t("ops.productsImportDownloadFailed"));
     }
