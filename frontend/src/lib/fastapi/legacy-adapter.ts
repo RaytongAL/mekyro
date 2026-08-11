@@ -33,6 +33,16 @@ type MappedRequest = {
 let installed = false;
 let workspaceCache: { token: string; promise: Promise<string> } | null = null;
 
+function randomUuid(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0"));
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+}
+
 function tokenFromCookie(): string {
   if (typeof document === "undefined") return "";
   const match = document.cookie.match(
@@ -208,8 +218,14 @@ async function mapLegacyRequest(source: URL, inputInit: RequestInit): Promise<Ma
     let workspaceName = "";
     let contactName: unknown = "";
     init = replaceJsonBody(init, (body) => {
-      const password = String(body.password || `Mekyro-${crypto.randomUUID()}!`);
+      const password = String(body.password || `Mekyro-${randomUuid()}!`);
       const name = String(body.workspace_name || "workspace");
+      const usernameSlug = String(body.username || "supplier")
+        .trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+        .slice(0, 48) || randomUuid().slice(0, 8);
+      const nameSlug = name
+        .trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+        .slice(0, Math.max(1, 99 - usernameSlug.length)) || "workspace";
       generatedPassword = password;
       workspaceName = name;
       contactName = body.contact_name || body.username;
@@ -221,9 +237,9 @@ async function mapLegacyRequest(source: URL, inputInit: RequestInit): Promise<Ma
         phone: body.phone || "",
         password,
         workspace_name: name,
-        workspace_slug: String(body.workspace_slug || name)
-          .trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
-          .slice(0, 90) || `workspace-${Date.now()}`,
+        workspace_slug: String(body.workspace_slug || `${nameSlug}-${usernameSlug}`)
+          .trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, "")
+          .slice(0, 100),
         description: body.description || "",
         site_type: body.site_type || "none",
         prompt: body.prompt || "",
@@ -474,7 +490,7 @@ async function mapLegacyRequest(source: URL, inputInit: RequestInit): Promise<Ma
       reference: body.reference_id || "",
     }));
     const headers = new Headers(init.headers);
-    headers.set("Idempotency-Key", crypto.randomUUID());
+    headers.set("Idempotency-Key", randomUuid());
     init = { ...init, headers };
     return { init, kind, url: apiUrl(`/workspaces/${workspaceId}/inventory-adjustments`) };
   }

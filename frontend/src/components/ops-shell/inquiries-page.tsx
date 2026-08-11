@@ -33,7 +33,7 @@ const STATUS_OPTIONS = [
 ];
 
 type InquiryItem = {
-  id: number;
+  id: string;
   company_name: string;
   business_text: string;
   country: string;
@@ -126,7 +126,7 @@ export function InquiriesPage({ kind }: { kind: InquiryKind }) {
         if (data?.code === 200 && data.data) {
           const field = config.businessField;
           setItems((data.data.results ?? []).map((r: Record<string, unknown>) => ({
-            id: Number(r.id),
+            id: String(r.id ?? ""),
             company_name: String(r.company_name ?? ""),
             business_text: String(r[field] ?? ""),
             country: String(r.country ?? ""),

@@ -9,7 +9,6 @@ import {
   Mail,
   MessageSquareText,
   Phone,
-  Plus,
   Search,
   Store,
   UserRound,
@@ -22,7 +21,6 @@ import { BackendSearchButton } from "@/components/backend-ui/backend-search-butt
 import { BackendPaginationNumbers } from "@/components/backend-ui/backend-pagination";
 import { BackendRowActions } from "@/components/backend-ui/backend-row-actions";
 import { BackendStatusBadge } from "@/components/backend-ui/backend-status-badge";
-import { BackendToolbarButton } from "@/components/backend-ui/backend-toolbar-button";
 import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,7 +150,7 @@ export function SupplierLeadsPage() {
   const [countryFilter, setCountryFilter] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [ordering, setOrdering] = useState("-id");
-  const [editingLead, setEditingLead] = useState<LeadItem | "create" | null>(null);
+  const [editingLead, setEditingLead] = useState<LeadItem | null>(null);
   const [leadDraft, setLeadDraft] = useState<LeadDraft>(EMPTY_LEAD_DRAFT);
   const [leadSaving, setLeadSaving] = useState(false);
   const [leadFormError, setLeadFormError] = useState("");
@@ -274,12 +272,6 @@ export function SupplierLeadsPage() {
   const scoreTier = (score: number) => (score >= 80 ? "high" : score >= 50 ? "medium" : "low");
   const isZh = locale === "zh-CN";
 
-  function openCreateLead() {
-    setEditingLead("create");
-    setLeadDraft(EMPTY_LEAD_DRAFT);
-    setLeadFormError("");
-  }
-
   function openEditLead(item: LeadItem) {
     setEditingLead(item);
     setLeadDraft({
@@ -305,18 +297,13 @@ export function SupplierLeadsPage() {
       setLeadFormError(isZh ? "商户名称、公司名称和国家为必填项。" : "Merchant, company and country are required.");
       return;
     }
-    const creating = editingLead === "create";
-    const url = creating ? "/api/supplier/leads/" : `/api/supplier/leads/${editingLead.id}/update/`;
-    const body = creating
-      ? { ...leadDraft, merchant_name: leadDraft.merchant_name.trim(), company_name: leadDraft.company_name.trim() }
-      : leadDraft;
     setLeadSaving(true);
     setLeadFormError("");
     try {
-      const response = await fetch(url, {
-        method: creating ? "POST" : "PATCH",
+      const response = await fetch(`/api/supplier/leads/${editingLead.id}/update/`, {
+        method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(leadDraft),
       });
       const data = await response.json();
       if (data?.code !== 200) {
@@ -402,10 +389,6 @@ export function SupplierLeadsPage() {
               variant="filter"
             />
             <BackendSearchButton label={t("supplier.search")} onClick={handleSearch} />
-            <BackendToolbarButton onClick={openCreateLead}>
-              <Plus aria-hidden="true" />
-              {isZh ? "新建线索" : "New lead"}
-            </BackendToolbarButton>
           </div>
         )}
         footer={(
@@ -540,7 +523,7 @@ export function SupplierLeadsPage() {
       <Sheet open={editingLead !== null} onOpenChange={(open) => { if (!open) setEditingLead(null); }}>
         <SheetContent side="right" className={opsStyles.leadDetailSheet}>
           <SheetHeader>
-            <SheetTitle>{editingLead === "create" ? (isZh ? "新建线索" : "New lead") : (isZh ? "编辑线索" : "Edit lead")}</SheetTitle>
+            <SheetTitle>{isZh ? "编辑线索" : "Edit lead"}</SheetTitle>
             <SheetDescription>{isZh ? "填写客户公司、联系人和跟进信息。" : "Maintain company, contact and follow-up details."}</SheetDescription>
           </SheetHeader>
           <div className={opsStyles.drawerTabContent}>
@@ -565,7 +548,7 @@ export function SupplierLeadsPage() {
             </div>
             <div className={opsStyles.formGroup}>
               <label className={opsStyles.formLabel}>{isZh ? "阶段" : "Stage"}</label>
-              <select className={opsStyles.formInput} value={leadDraft.stage} disabled={editingLead === "create"} onChange={(event) => setLeadDraft((draft) => ({ ...draft, stage: event.target.value }))}>
+              <select className={opsStyles.formInput} value={leadDraft.stage} onChange={(event) => setLeadDraft((draft) => ({ ...draft, stage: event.target.value }))}>
                 {STAGE_OPTIONS.map((stage) => <option key={stage.value} value={stage.value}>{isZh ? stage.label : stage.labelEn}</option>)}
               </select>
             </div>

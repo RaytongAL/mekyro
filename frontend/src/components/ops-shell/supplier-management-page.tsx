@@ -250,11 +250,29 @@ export function SupplierManagementPage() {
   }
 
   async function handleCreate() {
-    const { username, phone, email, workspace_name, contact_name } = createForm;
+    const username = createForm.username.trim().toLowerCase();
+    const phone = createForm.phone.trim();
+    const email = createForm.email.trim().toLowerCase();
+    const workspace_name = createForm.workspace_name.trim();
+    const contact_name = createForm.contact_name.trim();
     if (!username) { setCreateError(t("ops.supplierAccountsUsernameRequired")); return; }
+    if (!/^[a-zA-Z0-9_.-]{3,150}$/.test(username)) {
+      setCreateError(locale === "zh-CN"
+        ? "用户名需为 3-150 位，只能包含字母、数字、点、下划线或短横线。"
+        : "Username must be 3-150 characters using letters, numbers, dots, underscores, or hyphens.");
+      return;
+    }
     if (!phone) { setCreateError(t("ops.supplierAccountsPhoneRequired")); return; }
     if (!email) { setCreateError(t("ops.supplierAccountsEmailRequired")); return; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      setCreateError(locale === "zh-CN" ? "请输入有效的邮箱地址。" : "Enter a valid email address.");
+      return;
+    }
     if (!workspace_name) { setCreateError(t("ops.supplierAccountsWorkspaceNameRequired")); return; }
+    if (workspace_name.length < 2) {
+      setCreateError(locale === "zh-CN" ? "企业名称至少需要 2 个字符。" : "Company name must be at least 2 characters.");
+      return;
+    }
     if (!contact_name) { setCreateError(t("ops.supplierAccountsContactNameRequired")); return; }
 
     setCreating(true);
@@ -264,13 +282,27 @@ export function SupplierManagementPage() {
       const data = await api<ApiResponse<CreatedAccount>>("/api/workspace/create/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createForm),
+        body: JSON.stringify({
+          ...createForm,
+          username,
+          phone,
+          email,
+          workspace_name,
+          contact_name,
+          prompt: createForm.prompt.trim(),
+        }),
       });
       if (data?.code === 200 && data.data) {
         setCreatedAccount(data.data);
         fetchList();
       } else {
-        setCreateError(data?.message ?? t("ops.supplierAccountsCreateFailed"));
+        if (data?.code === 409) {
+          setCreateError(locale === "zh-CN"
+            ? "用户名、邮箱或手机号已被使用，请更换后重试。"
+            : "The username, email, or phone number is already in use.");
+        } else {
+          setCreateError(data?.message ?? t("ops.supplierAccountsCreateFailed"));
+        }
       }
     } catch {
       setCreateError(t("ops.supplierAccountsCreateFailed"));
@@ -761,7 +793,14 @@ export function SupplierManagementPage() {
                   <Tooltip>
                     <TooltipTrigger
                       render={
-                        <button type="button" className={styles.copyBtn} onClick={copyPassword} />
+                        <button
+                          type="button"
+                          className={styles.copyBtn}
+                          aria-label={passwordCopied
+                            ? t("ops.supplierAccountsPasswordCopied")
+                            : t("ops.supplierAccountsCopyPassword")}
+                          onClick={copyPassword}
+                        />
                       }
                     >
                       {passwordCopied ? <Check size={14} /> : <Copy size={14} />}

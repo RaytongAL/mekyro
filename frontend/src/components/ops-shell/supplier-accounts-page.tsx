@@ -589,7 +589,14 @@ export function SupplierAccountsPage() {
                   <Tooltip>
                     <TooltipTrigger
                       render={
-                        <button type="button" className={styles.copyBtn} onClick={copyPassword} />
+                        <button
+                          type="button"
+                          className={styles.copyBtn}
+                          aria-label={passwordCopied
+                            ? t("ops.supplierAccountsPasswordCopied")
+                            : t("ops.supplierAccountsCopyPassword")}
+                          onClick={copyPassword}
+                        />
                       }
                     >
                       {passwordCopied ? <Check size={14} /> : <Copy size={14} />}
