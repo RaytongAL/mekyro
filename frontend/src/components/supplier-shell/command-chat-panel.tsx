@@ -336,8 +336,7 @@ async function sendOnboardingSessionRequest(
             const shouldDismiss = isAbandon
               || isFinish
               || actionType === "pause_onboarding"
-              || event.data.status === "paused"
-              || (event.data.status === "completed" && !explicitStart);
+              || event.data.status === "paused";
             const shouldReactivate = explicitStart
               || actionType === "continue_onboarding"
               || actionType === "restart_onboarding"
@@ -1045,14 +1044,27 @@ function OnboardingCompletionTaskContent({
   | "completionActionsDisabled"
 >) {
   const [restartArmed, setRestartArmed] = useState(false);
+  const completionSummary = isZh
+    ? [
+        "## 入驻配置已完成",
+        "企业资料、网站信息和获客需求均已确认。",
+        "- 企业资料已保存",
+        "- 网站信息已配置",
+        "- 获客需求已生成",
+        "> 点击“完成引导”后将退出入驻流程并恢复普通 AI 对话。",
+      ].join("\n\n")
+    : [
+        "## Onboarding setup complete",
+        "Your company profile, website information, and acquisition requirements are confirmed.",
+        "- Company profile saved",
+        "- Website information configured",
+        "- Acquisition requirements created",
+        "> Select Finish onboarding to exit this flow and return to regular AI chat.",
+      ].join("\n\n");
 
   return (
     <div className={styles.onboardingCompletionTaskContent}>
-      {message.text ? (
-        <MarkdownRenderer content={message.text} />
-      ) : message.isStreaming ? (
-        <p>{thinking}</p>
-      ) : null}
+      <MarkdownRenderer content={message.text || completionSummary} />
       <div className={styles.onboardingCompletionActions}>
         {canSwitchWorkspace ? (
           <Button type="button" size="sm" variant="outline" disabled={completionActionsDisabled} onClick={onShowWorkspaceSelector}>
