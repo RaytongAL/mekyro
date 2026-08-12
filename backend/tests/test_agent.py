@@ -461,7 +461,10 @@ def test_agent_onboarding_resume_card_confirm_pause_continue_and_duplicate_apply
         client.post(
             agent_url(),
             headers=auth_header(newlife_token),
-            json={"conversation_id": conversation_id, "message": "Agent Onboarding Supplier"},
+            json={
+                "conversation_id": conversation_id,
+                "message": "企业名称是 Agent Onboarding Supplier，企业介绍是 Refurbished device exporter",
+            },
         )
     )
     card = event(profile, "onboarding_card")

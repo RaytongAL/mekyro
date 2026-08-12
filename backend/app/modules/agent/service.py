@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import UTC, timedelta
@@ -1224,6 +1225,30 @@ async def _onboarding_action(
     )
 
 
+_PROFILE_FIELD_PATTERN = re.compile(
+    r"(?:企业|公司)(?:名称|名)\s*(?:是|为|[:：])\s*(?P<name>.+?)"
+    r"(?:[，,；;。\n]+|\s+)"
+    r"(?:企业|公司)(?:介绍|简介)\s*(?:是|为|[:：])\s*(?P<description>.+)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _parse_profile_answers(message: str) -> dict:
+    text = message.strip()
+    matched = _PROFILE_FIELD_PATTERN.fullmatch(text)
+    if matched:
+        name = matched.group("name").strip(" \t\r\n，,；;。")
+        description = matched.group("description").strip(" \t\r\n，,；;。")
+        return {"name": name, "description": description}
+
+    natural_parts = re.split(r"[，,；;\n]+", text, maxsplit=1)
+    if len(natural_parts) != 2:
+        return {"name": "", "description": ""}
+    name = natural_parts[0].strip(" \t\r\n，,；;。")
+    description = natural_parts[1].strip(" \t\r\n，,；;。")
+    return {"name": name, "description": description}
+
+
 async def _natural_onboarding(
     message: str,
     *,
@@ -1248,7 +1273,13 @@ async def _natural_onboarding(
         return
     step = state["current_step"]
     if step == "profile":
-        answers = {"name": message.strip(), "description": ""}
+        answers = _parse_profile_answers(message)
+        if not answers["name"] or not answers["description"]:
+            yield _public_error(
+                "ONBOARDING_VALIDATION_FAILED",
+                "请同时填写企业名称和企业介绍，例如：企业名称是示例科技，企业介绍是专注于消费电子产品出口。",
+            )
+            return
     elif step == "site":
         lowered = message.lower()
         site_type = (

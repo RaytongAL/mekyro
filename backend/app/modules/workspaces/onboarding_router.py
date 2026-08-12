@@ -365,6 +365,11 @@ def _validate_answers(step: str, answers: dict) -> dict:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Company name is required"
             )
         description = str(answers.get("description") or "").strip()
+        if not description:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Company description is required",
+            )
         if len(description) > 10000:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
