@@ -48,7 +48,7 @@ export type OnboardingActionType =
   | "select_onboarding_site"
   | "back_onboarding_step";
 
-export type OnboardingSiteVariant = "shopify" | "self_hosted" | "other";
+export type OnboardingSiteVariant = "shopify" | "self_hosted" | "none";
 
 export interface OnboardingCardField {
   key: string;

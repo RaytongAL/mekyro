@@ -815,8 +815,8 @@ function OnboardingStepTaskContent({
           <div className={styles.onboardingSiteOptions} role="radiogroup" aria-label={isZh ? "选择站点类型" : "Choose site type"}>
             {([
               ["shopify", isZh ? "Shopify 独立站" : "Shopify store", isZh ? "填写店铺地址和 API 凭证" : "Add store URL and API credentials"],
-              ["self_hosted", isZh ? "自建独立站" : "Self-hosted site", isZh ? "补充网址和技术方式" : "Add URL and technology"],
-              ["other", isZh ? "其他" : "Other", isZh ? "补充网址和具体类型" : "Add URL and type details"],
+              ["self_hosted", isZh ? "Mekyro 独立站" : "Mekyro independent site", isZh ? "填写 Vendure 站点地址和技术方式" : "Add the Vendure site URL and technology"],
+              ["none", isZh ? "无" : "None", isZh ? "暂不配置独立站" : "Do not configure an independent site"],
             ] as const).map(([variant, label, description]) => (
               <button
                 key={variant}
@@ -835,7 +835,7 @@ function OnboardingStepTaskContent({
               </button>
             ))}
           </div>
-          {siteDraft.variant ? (
+          {siteDraft.variant && siteDraft.variant !== "none" ? (
             <div className={styles.onboardingSiteDetails}>
               <label>
                 <span>
@@ -914,6 +914,11 @@ function OnboardingStepTaskContent({
                   : (isZh ? "AI 优化并生成确认卡" : "Optimize with AI and create card")}
               </Button>
             </div>
+          ) : null}
+          {siteDraft.variant === "none" ? (
+            <Button type="button" disabled={actionsDisabled} onClick={onSiteSubmit}>
+              {isZh ? "生成确认卡" : "Create review card"}
+            </Button>
           ) : null}
         </div>
       ) : null}
@@ -1561,14 +1566,14 @@ export function CommandChatPanel({
             shopify_store_url: draft.url.trim(),
             shopify_api_key: draft.apiKey.trim(),
             shopify_api_secret_key: draft.apiSecret.trim(),
-          } : {
+          } : variant === "self_hosted" ? {
             site_url: draft.url.trim(),
             site_details: draft.details.trim(),
-          }),
+          } : {}),
         },
       },
       isZh
-        ? `选择站点类型：${variant === "shopify" ? "Shopify 独立站" : variant === "self_hosted" ? "自建独立站" : "其他"}`
+        ? `选择站点类型：${variant === "shopify" ? "Shopify 独立站" : variant === "self_hosted" ? "Mekyro 独立站" : "无"}`
         : `Choose site type: ${variant}`,
     );
   }, [isZh, onboardingContext?.workspace_id]);

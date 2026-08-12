@@ -82,18 +82,20 @@ def test_site_variants_validate_replace_drafts_and_preserve_pending_card_on_back
         },
     ).json()
     first_card = first["steps"]["site"]["pending_card"]
+    assert first["steps"]["site"]["answers"]["site_type"] == "vendure"
+    assert first_card["fields"][0]["value"] == "Mekyro独立站"
     second = client.put(
         f"{base}/steps/site/draft",
         headers=headers,
         json={
             "answers": {
-                "site_variant": "other",
-                "site_url": "https://market.example",
-                "site_details": "Third-party B2B marketplace",
+                "site_variant": "none",
             }
         },
     ).json()
     second_card = second["steps"]["site"]["pending_card"]
+    assert second["steps"]["site"]["answers"]["site_type"] == "none"
+    assert second_card["fields"][0]["value"] == "无"
     assert second_card["replaces_card_id"] == first_card["card_id"]
 
     backed = client.post(f"{base}/back", headers=headers)

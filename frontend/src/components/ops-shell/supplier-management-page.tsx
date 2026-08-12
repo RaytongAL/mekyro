@@ -89,6 +89,14 @@ type SupplierAccountDetail = {
   ws_user_role: string;
 };
 
+function siteTypeLabel(siteType: string, t: (key: string) => string) {
+  if (siteType === "shopify") return t("ops.shopifyConfigSiteTypeShopify");
+  if (siteType === "vendure" || siteType === "independent") {
+    return t("ops.shopifyConfigSiteTypeIndependent");
+  }
+  return t("ops.shopifyConfigSiteTypeNone");
+}
+
 type CreatedAccount = {
   workspace_id: number;
   workspace_name: string;
@@ -348,7 +356,7 @@ export function SupplierManagementPage() {
           workspace_is_active: d.is_active,
           contact_name: d.ws_user_name,
           role: d.ws_user_role as "owner" | "admin",
-          site_type: d.site_type || "",
+          site_type: d.site_type === "independent" ? "vendure" : (d.site_type || ""),
           store_url: "",
           api_key: "",
           api_secret_key: "",
@@ -400,7 +408,7 @@ export function SupplierManagementPage() {
     if (editForm.prompt !== (editDetail.prompt || "")) body.prompt = editForm.prompt;
     if (editForm.daily_lead_limit !== (editDetail.daily_lead_limit || 0)) body.daily_lead_limit = editForm.daily_lead_limit;
     if (editForm.email_outreach_enabled !== editDetail.email_outreach_enabled) body.email_outreach_enabled = editForm.email_outreach_enabled;
-    if (editForm.site_type === "independent") {
+    if (editForm.site_type === "vendure" || editForm.site_type === "independent") {
       if (editForm.vendure_channels_token !== (editDetail.vendure_channels_token || "")) body.vendure_channels_token = editForm.vendure_channels_token;
       if (editForm.vendure_url !== (editDetail.vendure_url || "")) body.vendure_url = editForm.vendure_url;
     }
@@ -591,7 +599,7 @@ export function SupplierManagementPage() {
                 <TableHead>{t("ops.headerOwner")}</TableHead>
                 <TableHead>{t("ops.supplierAccountsFormRole")}</TableHead>
                 <TableHead>{t("ops.supplierAccountsHeaderPhone")}</TableHead>
-                <TableHead>{t("ops.supplierManagementShopifyStatus")}</TableHead>
+                <TableHead>{t("ops.supplierManagementSiteType")}</TableHead>
                 <TableHead>{t("ops.supplierAccountsHeaderLeadLimit")}</TableHead>
                 <TableHead>{t("ops.supplierAccountsHeaderEmailOutreach")}</TableHead>
                 <TableHead>{t("ops.supplierAccountsFormPrompt")}</TableHead>
@@ -602,7 +610,6 @@ export function SupplierManagementPage() {
             <TableBody>
               {workspaces.map((ws) => {
                 const primary = ws.members.find((m) => m.role === "owner") ?? ws.members[0];
-                const sc = ws.shopify_config;
                 return (
                   <TableRow key={ws.workspace_id} style={{ opacity: ws.is_active ? 1 : 0.5 }}>
                     <TableCell style={{ color: "var(--text-tertiary)", fontSize: 12 }}>{ws.workspace_id}</TableCell>
@@ -611,13 +618,7 @@ export function SupplierManagementPage() {
                     <TableCell><TruncatedCell>{primary ? (primary.ws_user_name || primary.nickname || primary.username) : "—"}</TruncatedCell></TableCell>
                     <TableCell>{primary ? roleLabel(primary.role, locale) : "—"}</TableCell>
                     <TableCell><TruncatedCell>{primary?.phone || "—"}</TruncatedCell></TableCell>
-                    <TableCell>
-                      {sc?.has_config
-                        ? (sc.is_active
-                            ? t("ops.shopifyConfigEnabled")
-                            : t("ops.shopifyConfigDisabled"))
-                        : t("ops.shopifyConfigNotConfigured")}
-                    </TableCell>
+                    <TableCell>{siteTypeLabel(ws.site_type, t)}</TableCell>
                     <TableCell style={{ color: "var(--text-secondary)" }}>
                       {ws.daily_lead_limit > 0 ? ws.daily_lead_limit : "—"}
                     </TableCell>
@@ -947,7 +948,7 @@ export function SupplierManagementPage() {
                       >
                         <option value="">{t("ops.shopifyConfigSiteTypeNone")}</option>
                         <option value="shopify">{t("ops.shopifyConfigSiteTypeShopify")}</option>
-                        <option value="independent">{t("ops.shopifyConfigSiteTypeIndependent")}</option>
+                        <option value="vendure">{t("ops.shopifyConfigSiteTypeIndependent")}</option>
                       </select>
                     </div>
 
@@ -1000,7 +1001,7 @@ export function SupplierManagementPage() {
                       </>
                     )}
 
-                    {editForm.site_type === "independent" && (
+                    {(editForm.site_type === "vendure" || editForm.site_type === "independent") && (
                       <>
                         <div className={styles.formGroup}>
                           <label className={styles.formLabel}>{t("ops.vendureChannelsToken")}</label>

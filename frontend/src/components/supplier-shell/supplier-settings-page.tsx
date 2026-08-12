@@ -43,8 +43,9 @@ export function SupplierSettingsPage() {
           setWorkspaceId(nextWorkspaceId);
           setName(d.data.workspace_name || "");
           setDesc(d.data.description || "");
-          setSiteType(d.data.site_type || "");
-          setLoadedSiteType(d.data.site_type || "");
+          const loadedSiteType = d.data.site_type === "independent" ? "vendure" : (d.data.site_type || "");
+          setSiteType(loadedSiteType);
+          setLoadedSiteType(loadedSiteType);
           setLeadRequirement(d.data.prompt || d.data.lead_acquisition_requirement || "");
           setStoreUrl(d.data.store_url || "");
           setApiKey(d.data.api_key || "");
@@ -95,7 +96,7 @@ export function SupplierSettingsPage() {
       body.store_url = storeUrl; body.api_key = apiKey;
       if (secretKey) body.api_secret_key = secretKey;
     }
-    if (siteType === "independent") {
+    if (siteType === "vendure" || siteType === "independent") {
       body.vendure_url = vendureUrl;
       body.vendure_channels_token = vendureChannelsToken;
     }
@@ -162,7 +163,7 @@ export function SupplierSettingsPage() {
   }
 
   const showShopify = siteType === "shopify";
-  const showVendure = siteType === "independent";
+  const showVendure = siteType === "vendure" || siteType === "independent";
 
   if (loading) return <div className={styles.whiteCard}><p className={styles.loadingText}>{t("common.loading")}</p></div>;
 
@@ -218,7 +219,7 @@ export function SupplierSettingsPage() {
               options={[
                 { value: "", label: t("ops.shopifyConfigSiteTypeNone") },
                 { value: "shopify", label: t("ops.shopifyConfigSiteTypeShopify") },
-                { value: "independent", label: t("ops.shopifyConfigSiteTypeIndependent") },
+                { value: "vendure", label: t("ops.shopifyConfigSiteTypeIndependent") },
               ]}
               emptyLabel={t("ops.comboboxNoResults")}
               placeholder={t("ops.shopifyConfigSiteTypeNone")}

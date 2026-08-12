@@ -86,7 +86,7 @@ export function ShopifyConfigPage() {
     setEditRow(row);
     setFormName(row.workspace_name);
     setFormDesc(row.description || "");
-    setFormSiteType(row.site_type || "");
+    setFormSiteType(row.site_type === "independent" ? "vendure" : (row.site_type || ""));
     setFormStoreUrl(row.store_url);
     setFormApiKey(row.api_key);
     setFormSecretKey(row.api_secret_key);
@@ -147,7 +147,7 @@ export function ShopifyConfigPage() {
 
   function siteTypeLabel(tp: string): string {
     if (tp === "shopify") return t("ops.shopifyConfigSiteTypeShopify");
-    if (tp === "independent") return t("ops.shopifyConfigSiteTypeIndependent");
+    if (tp === "vendure" || tp === "independent") return t("ops.shopifyConfigSiteTypeIndependent");
     return t("ops.shopifyConfigSiteTypeNone");
   }
 
@@ -269,7 +269,7 @@ export function ShopifyConfigPage() {
                     options={[
                       { value: "", label: t("ops.shopifyConfigSiteTypeNone") },
                       { value: "shopify", label: t("ops.shopifyConfigSiteTypeShopify") },
-                      { value: "independent", label: t("ops.shopifyConfigSiteTypeIndependent") },
+                      { value: "vendure", label: t("ops.shopifyConfigSiteTypeIndependent") },
                     ]}
                     emptyLabel={t("ops.comboboxNoResults")}
                     placeholder={t("ops.shopifyConfigSiteTypeNone")}

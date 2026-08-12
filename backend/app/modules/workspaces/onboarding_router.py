@@ -229,10 +229,15 @@ def _reconcile_onboarding_executions(workspace: Workspace, state: dict) -> bool:
         elif answers.get("site_variant") == "shopify":
             matches = False
         elif answers.get("site_variant") in {"self_hosted", "other"}:
+            expected_site_type = (
+                "vendure" if answers.get("site_variant") == "self_hosted" else "independent"
+            )
             matches = (
-                workspace.site_type == "independent"
+                workspace.site_type == expected_site_type
                 and workspace.vendure_url == answers.get("site_url")
             )
+        elif answers.get("site_variant") == "none":
+            matches = workspace.site_type == "none"
         else:
             matches = (
                 workspace.site_type == answers.get("site_type")
@@ -280,7 +285,14 @@ def _card(step: str, answers: dict) -> dict:
         title = "公司资料预览"
     elif step == "site":
         variant = answers.get("site_variant")
-        fields = [{"key": "site_type", "label": "站点类型", "value": variant or answers["site_type"]}]
+        site_type_value = {
+            "shopify": "Shopify",
+            "self_hosted": "Mekyro独立站",
+            "vendure": "Mekyro独立站",
+            "independent": "Mekyro独立站",
+            "none": "无",
+        }.get(str(variant or answers["site_type"]), "无")
+        fields = [{"key": "site_type", "label": "独立站类型", "value": site_type_value}]
         if variant == "shopify":
             fields.extend(
                 [
@@ -312,6 +324,8 @@ def _card(step: str, answers: dict) -> dict:
                     },
                 ]
             )
+        elif variant == "none":
+            pass
         else:
             fields.append(
                 {
@@ -379,7 +393,7 @@ def _validate_answers(step: str, answers: dict) -> dict:
     if step == "site":
         variant = str(answers.get("site_variant") or "").strip().lower()
         if variant:
-            if variant not in {"shopify", "self_hosted", "other"}:
+            if variant not in {"shopify", "self_hosted", "other", "none"}:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="Invalid site variant",
@@ -413,6 +427,8 @@ def _validate_answers(step: str, answers: dict) -> dict:
                         credentials
                     ),
                 }
+            if variant == "none":
+                return {"site_type": "none", "site_variant": "none"}
             site_url = _valid_http_url(answers.get("site_url"), "Site URL")
             site_details = " ".join(str(answers.get("site_details") or "").split()).strip()
             if not site_details:
@@ -426,7 +442,7 @@ def _validate_answers(step: str, answers: dict) -> dict:
                     detail="Site details are too long",
                 )
             return {
-                "site_type": "independent",
+                "site_type": "vendure" if variant == "self_hosted" else "independent",
                 "site_variant": variant,
                 "site_url": site_url,
                 "site_details": site_details,
@@ -725,8 +741,13 @@ async def apply_card(
             context.workspace.site_type = "shopify"
             clear_shopify_caches(context.workspace.id)
         elif answers.get("site_variant") in {"self_hosted", "other"}:
-            context.workspace.site_type = "independent"
+            context.workspace.site_type = (
+                "vendure" if answers.get("site_variant") == "self_hosted" else "independent"
+            )
             context.workspace.vendure_url = answers["site_url"]
+        elif answers.get("site_variant") == "none":
+            context.workspace.site_type = "none"
+            context.workspace.vendure_url = ""
         else:
             context.workspace.site_type = answers["site_type"]
             context.workspace.vendure_url = answers["vendure_url"]

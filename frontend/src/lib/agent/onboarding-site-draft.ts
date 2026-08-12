@@ -33,6 +33,7 @@ export function validateOnboardingSiteDraft(
   isZh: boolean,
 ): OnboardingSiteDraftErrors {
   const errors: OnboardingSiteDraftErrors = {};
+  if (draft.variant === "none") return errors;
   const url = draft.url.trim();
   if (!url) {
     errors.url = isZh ? "请填写网站地址" : "Website URL is required";
@@ -62,7 +63,7 @@ export function validateOnboardingSiteDraft(
     } else if (apiSecret.length > 200) {
       errors.apiSecret = isZh ? "Secret Key 不能超过 200 个字符" : "Secret Key must be 200 characters or fewer";
     }
-  } else if (draft.variant === "self_hosted" || draft.variant === "other") {
+  } else if (draft.variant === "self_hosted") {
     const details = draft.details.trim();
     if (!details) {
       errors.details = isZh ? "请填写类型说明" : "Details are required";
