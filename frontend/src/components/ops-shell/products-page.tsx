@@ -1853,6 +1853,7 @@ export function ProductsPage() {
         skuId={logsSku?.id ?? null}
         skuCode={logsSku?.skuCode}
         productName={logsSku?.productName}
+        workspaceId={selectedWorkspaceId}
       />
       <ImportDialog
         open={importOpen}

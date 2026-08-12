@@ -20,8 +20,7 @@ import { BackendPageSizeSelect } from "../ops-shell/backend-select";
 import { TruncatedCell } from "../ops-shell/truncated-cell";
 import { SortButton } from "../ops-shell/sort-button";
 import { CategoryTree, CategoryCascader, buildCategoryPath, type CategoryOption } from "../ops-shell/category-tree";
-// supplier: no logs drawer
-import { /* no workspace */ } from "../ops-shell/workspace-context";
+import { InventoryLogsDrawer } from "../ops-shell/inventory-logs-drawer";
 import { ImportDialog } from "../ops-shell/import-dialog";
 
 import styles from "../ops-shell/ops-shell.module.css";
@@ -1850,6 +1849,14 @@ export function SupplierProductsPage() {
           </div>
         </SheetContent>
       </Sheet>
+      <InventoryLogsDrawer
+        open={!!logsSku}
+        onOpenChange={(open) => { if (!open) setLogsSku(null); }}
+        skuId={logsSku?.id ?? null}
+        skuCode={logsSku?.skuCode}
+        productName={logsSku?.productName}
+        apiPrefix="/api/supplier"
+      />
       <ImportDialog
         open={importOpen}
         onOpenChange={setImportOpen}

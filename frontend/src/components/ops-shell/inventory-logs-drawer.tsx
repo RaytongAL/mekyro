@@ -7,7 +7,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BackendPageSizeSelect } from "./backend-select";
 import { TruncatedCell } from "./truncated-cell";
-import { useWorkspace } from "./workspace-context";
 
 import styles from "./ops-shell.module.css";
 
@@ -39,12 +38,21 @@ type Props = {
   skuId: number | null;
   skuCode?: string;
   productName?: string;
+  apiPrefix?: "/api/internal" | "/api/supplier";
+  workspaceId?: string;
 };
 
-export function InventoryLogsDrawer({ open, onOpenChange, skuId, skuCode, productName }: Props) {
+export function InventoryLogsDrawer({
+  open,
+  onOpenChange,
+  skuId,
+  skuCode,
+  productName,
+  apiPrefix = "/api/internal",
+  workspaceId,
+}: Props) {
   const { t } = useTranslation();
   const locale = i18n.language;
-  const { selectedWorkspaceId } = useWorkspace();
 
   const [logs, setLogs] = useState<InventoryLogItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,7 +64,7 @@ export function InventoryLogsDrawer({ open, onOpenChange, skuId, skuCode, produc
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const fetchLogs = useCallback(() => {
-    if (!skuId || !selectedWorkspaceId) return;
+    if (!skuId || (apiPrefix === "/api/internal" && !workspaceId)) return;
     const token = getToken();
     if (!token) return;
     setLoading(true);
@@ -65,10 +73,10 @@ export function InventoryLogsDrawer({ open, onOpenChange, skuId, skuCode, produc
       page: String(page),
       page_size: String(pageSize),
       sku_id: String(skuId),
-      workspace_id: selectedWorkspaceId,
       ordering: "-id",
     });
-    fetch(`/api/internal/inventory-logs/?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } })
+    if (workspaceId) params.set("workspace_id", workspaceId);
+    fetch(`${apiPrefix}/inventory-logs/?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.code === 200 && data.data) {
@@ -80,7 +88,7 @@ export function InventoryLogsDrawer({ open, onOpenChange, skuId, skuCode, produc
       })
       .catch(() => setError(t("ops.inventoryLogsFetchFailed")))
       .finally(() => setLoading(false));
-  }, [skuId, selectedWorkspaceId, page, pageSize, t]);
+  }, [apiPrefix, skuId, workspaceId, page, pageSize, t]);
 
   useEffect(() => {
     if (open && skuId) fetchLogs();

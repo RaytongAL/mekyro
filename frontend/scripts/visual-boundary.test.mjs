@@ -266,6 +266,15 @@ test("product management pages use one full-width category-filtered workbench", 
   assert.doesNotMatch(styles, /\.productsSidebar\s*\{/);
 });
 
+test("supplier SKU inventory log action opens the shared supplier drawer", () => {
+  const supplierSource = sourceFor("src/components/supplier-shell/supplier-products-page.tsx");
+  const drawerSource = sourceFor("src/components/ops-shell/inventory-logs-drawer.tsx");
+
+  assert.match(supplierSource, /setLogsSku\(\{ id: sku\.id, skuCode: sku\.sku_code, productName: product\.name \}\)/);
+  assert.match(supplierSource, /<InventoryLogsDrawer[\s\S]*?open=\{!!logsSku\}[\s\S]*?apiPrefix="\/api\/supplier"/);
+  assert.match(drawerSource, /fetch\(`\$\{apiPrefix\}\/inventory-logs\/\?\$\{params\.toString\(\)\}`/);
+});
+
 test("supplier category management relocates the original action tree without changing handlers", () => {
   const opsSource = sourceFor("src/components/ops-shell/products-page.tsx");
   const supplierSource = sourceFor("src/components/supplier-shell/supplier-products-page.tsx");
