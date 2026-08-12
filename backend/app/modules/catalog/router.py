@@ -23,7 +23,7 @@ from app.core.models import (
     ProductVariant,
     new_id,
 )
-from app.core.storage import save_local_upload
+from app.core.storage import save_upload
 from app.modules.catalog.sync_outbox import enqueue_catalog_sync_if_configured
 
 router = APIRouter(prefix="/workspaces/{workspace_id}", tags=["catalog"])
@@ -1822,10 +1822,11 @@ async def upload_catalog_file(
     file: Annotated[UploadFile, File()],
 ) -> UploadResponse:
     del context
-    url = await save_local_upload(
+    url = await save_upload(
         file,
         directory=request.app.state.upload_directory,
         max_bytes=request.app.state.max_upload_bytes,
+        settings=request.app.state.settings,
     )
     return UploadResponse(url=url)
 

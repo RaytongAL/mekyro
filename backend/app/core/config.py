@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     auto_seed: bool = True
     upload_directory: str = "./data/uploads"
     max_upload_bytes: int = 10 * 1024 * 1024
+    oss_access_key_id: str = ""
+    oss_access_key_secret: str = ""
+    oss_endpoint: str = ""
+    oss_bucket_name: str = ""
+    oss_upload_prefix: str = "mekyro"
     public_inquiry_rate_limit_per_minute: int = 60
     agent_api_key: str = ""
     agent_base_url: str = "https://api.deepseek.com"
