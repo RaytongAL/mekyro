@@ -452,6 +452,7 @@ export function SupplierShell({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [enterpriseName, setEnterpriseName] = useState("");
   const [userName, setUserName] = useState("");
+  const [identityLoading, setIdentityLoading] = useState(true);
   const [isSuperuser, setIsSuperuser] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [popoverHovered, setPopoverHovered] = useState(false);
@@ -467,8 +468,12 @@ export function SupplierShell({
   const assistantActionLabel = t("supplier.assistantActionLabel");
   const isDarkTheme = resolvedTheme === "dark";
   const themeToggleLabel = isDarkTheme ? t("common.lightMode") : t("common.darkMode");
-  const workspaceLabel = enterpriseName || (locale === "zh-CN" ? "供应商工作区" : "Supplier workspace");
-  const userLabel = userName || (locale === "zh-CN" ? "供应商账号" : "Supplier account");
+  const workspaceLabel = enterpriseName || (identityLoading
+    ? (locale === "zh-CN" ? "正在加载企业信息" : "Loading company")
+    : (locale === "zh-CN" ? "未命名企业" : "Unnamed company"));
+  const userLabel = userName || (identityLoading
+    ? (locale === "zh-CN" ? "正在加载账号信息" : "Loading account")
+    : (locale === "zh-CN" ? "未命名账号" : "Unnamed account"));
   const profileInitial = (userLabel || workspaceLabel || "M").trim().slice(0, 1).toUpperCase();
   const footerYear = new Date().getFullYear();
   const salesNavActive = leadNavigation.some((item) => item.id === activePage);
@@ -484,11 +489,14 @@ export function SupplierShell({
         const user = JSON.parse(stored);
         setIsSuperuser(!!user.is_superuser);
         const ws = user.workspaces?.[0];
-        if (ws) {
+        if (ws?.workspace_name) {
           setEnterpriseName(ws.workspace_name ?? "");
-          setUserName(ws.ws_user_name ?? user.nickname ?? "");
+          setUserName(ws.ws_user_name ?? user.nickname ?? user.username ?? "");
+          setIdentityLoading(false);
+          return;
         }
-        return;
+        setUserName(user.nickname ?? user.username ?? "");
+        setIdentityLoading(false);
       } catch {
         sessionStorage.removeItem("user");
       }
@@ -501,12 +509,14 @@ export function SupplierShell({
         setIsSuperuser(!!user.is_superuser);
         sessionStorage.setItem("user", JSON.stringify(user));
         const ws = user.workspaces?.[0];
-        if (ws) {
+        if (ws?.workspace_name) {
           setEnterpriseName(ws.workspace_name ?? "");
-          setUserName(ws.ws_user_name ?? user.nickname ?? "");
+          setUserName(ws.ws_user_name ?? user.nickname ?? user.username ?? "");
         }
+        else setUserName(user.nickname ?? user.username ?? "");
+        setIdentityLoading(false);
       })
-      .catch(() => { /* ignore */ });
+      .catch(() => setIdentityLoading(false));
   }, []);
 
   const handleLogout = useCallback(() => {
