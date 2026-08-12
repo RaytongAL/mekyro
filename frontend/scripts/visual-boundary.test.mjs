@@ -1870,6 +1870,9 @@ test("supplier onboarding welcome treatment stays borderless", () => {
   assert.match(welcomeActiveStep, /background:\s*#f0f2ec\s*;/);
   assert.match(welcomeThread, /max-height:\s*min\(540px, 62vh\)\s*;/);
   assert.match(darkWelcomeCard, /box-shadow:\s*none\s*;/);
+  assert.match(source, /message\.presentation === "onboarding_welcome"[\s\S]*?<OnboardingWelcomeTaskContent/);
+  assert.match(source, /isWelcome && styles\.onboardingWelcomeCard/);
+  assert.match(source, /message\.presentation === "onboarding_welcome" && styles\.onboardingWelcomeRow/);
   assert.doesNotMatch(source, /styles\.onboardingContextMeta|styles\.onboardingWorkspaceBadge|styles\.onboardingProgressBadge/);
 });
 

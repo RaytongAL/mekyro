@@ -5282,6 +5282,27 @@
   max-width: 560px;
 }
 
+.restartOnboardingEntry {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 14px;
+}
+
+.onboardingProfilePrompt {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.restartOnboardingEntry > span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .supplierSettingsSuccess {
   border-color: var(--border-default) !important;
 }

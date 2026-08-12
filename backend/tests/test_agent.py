@@ -1031,6 +1031,103 @@ def test_onboarding_welcome_is_only_shown_on_first_auto_resume(
     assert event(repeated, "onboarding_context")["status"] == "paused"
 
 
+def test_natural_profile_input_creates_one_review_card_and_advances_to_site(
+    client: TestClient,
+    newlife_token: str,
+):
+    headers = auth_header(newlife_token)
+    resumed = parse_sse(
+        client.post(agent_url(), headers=headers, json={"action": {"type": "resume_onboarding"}})
+    )
+    conversation_id = event(resumed, "conversation")["conversation_id"]
+
+    profile = parse_sse(
+        client.post(
+            agent_url(),
+            headers=headers,
+            json={
+                "conversation_id": conversation_id,
+                "message": "企业名称是星云科技，企业介绍是专注消费电子产品出口",
+            },
+        )
+    )
+    cards = [payload for name, payload in profile if name == "onboarding_card"]
+    assert len(cards) == 1
+    assert cards[0]["step"] == "profile"
+    assert {field["key"]: field["value"] for field in cards[0]["fields"]} == {
+        "name": "星云科技",
+        "description": "专注消费电子产品出口",
+    }
+    assert event(profile, "onboarding_context")["status"] == "in_progress"
+    assert all("欢迎使用 Mekyro" not in payload.get("text", "") for name, payload in profile if name == "text")
+
+    confirmed = parse_sse(
+        client.post(
+            agent_url(),
+            headers=headers,
+            json={
+                "conversation_id": conversation_id,
+                "action": {
+                    "type": "confirm_onboarding_card",
+                    "step": "profile",
+                    "card_id": cards[0]["card_id"],
+                },
+            },
+        )
+    )
+    assert event(confirmed, "onboarding_context")["current_step"] == "site"
+
+
+def test_natural_profile_input_requires_both_fields(client: TestClient, newlife_token: str):
+    headers = auth_header(newlife_token)
+    resumed = parse_sse(
+        client.post(agent_url(), headers=headers, json={"action": {"type": "resume_onboarding"}})
+    )
+    conversation_id = event(resumed, "conversation")["conversation_id"]
+    response = parse_sse(
+        client.post(
+            agent_url(),
+            headers=headers,
+            json={"conversation_id": conversation_id, "message": "星云科技"},
+        )
+    )
+    assert event(response, "error")["code"] == "ONBOARDING_VALIDATION_FAILED"
+    assert all(name != "onboarding_card" for name, _ in response)
+
+
+def test_natural_profile_parser_handles_colons_semicolons_and_newlines(
+    client: TestClient,
+    newlife_token: str,
+):
+    headers = auth_header(newlife_token)
+    resumed = parse_sse(
+        client.post(agent_url(), headers=headers, json={"action": {"type": "resume_onboarding"}})
+    )
+    conversation_id = event(resumed, "conversation")["conversation_id"]
+    cases = (
+        ("公司名称：星云科技；公司简介：消费电子出口服务商", "星云科技", "消费电子出口服务商"),
+        ("企业名称为海川贸易\n企业介绍为面向欧洲市场的批发商", "海川贸易", "面向欧洲市场的批发商"),
+        ("yuntu科技，专注于二手产品出口", "yuntu科技", "专注于二手产品出口"),
+    )
+    previous_card_id = None
+    for message, expected_name, expected_description in cases:
+        response = parse_sse(
+            client.post(
+                agent_url(),
+                headers=headers,
+                json={"conversation_id": conversation_id, "message": message},
+            )
+        )
+        card = event(response, "onboarding_card")
+        fields = {field["key"]: field["value"] for field in card["fields"]}
+        assert fields == {"name": expected_name, "description": expected_description}
+        assert "公司名称" not in fields["name"]
+        assert "企业名称" not in fields["name"]
+        if previous_card_id:
+            assert card["replaces_card_id"] == previous_card_id
+        previous_card_id = card["card_id"]
+
+
 def test_deterministic_agent_explains_how_to_acquire_new_leads(
     client: TestClient,
     newlife_token: str,

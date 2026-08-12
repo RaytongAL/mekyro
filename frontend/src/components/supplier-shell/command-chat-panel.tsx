@@ -90,6 +90,7 @@ const ONBOARDING_STEP_ENTRY_ACTIONS = new Set([
   "continue_onboarding",
   "select_onboarding_workspace",
   "back_onboarding_step",
+  "cancel_onboarding_card",
 ]);
 
 const ONBOARDING_STEP_TRANSITION_ACTIONS = new Set([
@@ -499,6 +500,7 @@ type OnboardingReviewCardProps = {
   disabled: boolean;
   isZh: boolean;
   onAction: (card: OnboardingCardData, action: OnboardingCardAction) => void;
+  onEdit: (card: OnboardingCardData) => void;
 };
 
 function OnboardingReviewCard({
@@ -506,6 +508,7 @@ function OnboardingReviewCard({
   disabled,
   isZh,
   onAction,
+  onEdit,
 }: OnboardingReviewCardProps) {
   const statusLabels = isZh
     ? {
@@ -558,16 +561,14 @@ function OnboardingReviewCard({
             <span>{card.warning}</span>
           </p>
         ) : null}
-        {isActionable && card.status !== "result_unknown" ? (
-          <p className={styles.onboardingCardEditHint}>
-            {isZh
-              ? "如需调整，请直接在下方输入框发送修改内容。"
-              : "To make changes, send the updated details in the message box below."}
-          </p>
-        ) : null}
       </CardContent>
       {isActionable && card.actions.length > 0 ? (
         <CardFooter className={styles.onboardingCardFooter}>
+          {card.status === "draft" ? (
+            <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={() => onEdit(card)}>
+              {isZh ? "编辑" : "Edit"}
+            </Button>
+          ) : null}
           {card.actions.map((action) => (
             <Button
               key={`${action.type}-${action.resolution || "default"}`}
@@ -700,6 +701,8 @@ type AssistantMessageContentProps = {
   isZh: boolean;
   actionsDisabled: boolean;
   onAction: OnboardingReviewCardProps["onAction"];
+  onEditCard: OnboardingReviewCardProps["onEdit"];
+  profileEditDraft: { name: string; description: string };
   isActiveStep: boolean;
   siteDraft: OnboardingSessionSnapshot["siteDraft"];
   onSiteVariantChange: (variant: OnboardingSiteVariant) => void;
@@ -726,6 +729,7 @@ function OnboardingStepTaskContent({
   onSiteSubmit,
   onStepDraftSubmit,
   onBackStep,
+  profileEditDraft,
 }: Pick<
   AssistantMessageContentProps,
   | "message"
@@ -739,6 +743,7 @@ function OnboardingStepTaskContent({
   | "onSiteSubmit"
   | "onStepDraftSubmit"
   | "onBackStep"
+  | "profileEditDraft"
 >) {
   const step = message.onboardingStep;
   const [profileName, setProfileName] = useState("");
@@ -753,6 +758,13 @@ function OnboardingStepTaskContent({
     "公开 Email、电话或 WhatsApp 任意一种即可，不得推测或补全。",
   );
   const [formError, setFormError] = useState("");
+  useEffect(() => {
+    if (profileEditDraft.name || profileEditDraft.description) {
+      setProfileName(profileEditDraft.name);
+      setProfileDescription(profileEditDraft.description);
+      setFormError("");
+    }
+  }, [profileEditDraft.description, profileEditDraft.name]);
   if (!step) return null;
   const steps = ["profile", "site", "leads"];
   const stepIndex = Math.max(0, steps.indexOf(step.currentStep));
@@ -1023,6 +1035,66 @@ function OnboardingStepTaskContent({
   );
 }
 
+function OnboardingWelcomeTaskContent({
+  isZh,
+  actionsDisabled,
+  profileEditDraft,
+  onStepDraftSubmit,
+}: Pick<AssistantMessageContentProps, "isZh" | "actionsDisabled" | "profileEditDraft" | "onStepDraftSubmit">) {
+  const [profileName, setProfileName] = useState(profileEditDraft.name);
+  const [profileDescription, setProfileDescription] = useState(profileEditDraft.description);
+  const [formError, setFormError] = useState("");
+  useEffect(() => {
+    if (profileEditDraft.name || profileEditDraft.description) {
+      setProfileName(profileEditDraft.name);
+      setProfileDescription(profileEditDraft.description);
+      setFormError("");
+    }
+  }, [profileEditDraft.description, profileEditDraft.name]);
+  const welcomeContent = isZh
+    ? [
+        "## 欢迎使用 Mekyro",
+        "接下来会用三个步骤完成工作区初始化，AI 助理会据此理解你的业务。",
+        "1. **企业资料**（当前步骤）",
+        "2. **网站信息**",
+        "3. **获客需求**",
+        "> 当前步骤：企业资料",
+        "> 示例：企业名称是星云科技，企业介绍是专注消费电子产品出口。",
+        "> 所有信息都会先生成确认卡，经你确认后才正式保存。",
+      ].join("\n\n")
+    : [
+        "## Welcome to Mekyro",
+        "We will initialize your workspace in three steps so the AI assistant can understand your business.",
+        "1. **Company profile** (current step)",
+        "2. **Website information**",
+        "3. **Acquisition requirements**",
+        "> Current step: Company profile",
+        "> Example: Company name is Nebula Tech, company description is a consumer electronics exporter.",
+        "> Every change is shown in a review card and saved only after you confirm it.",
+      ].join("\n\n");
+
+  return (
+    <div className={styles.onboardingWelcomeTaskContent}>
+      <MarkdownRenderer content={welcomeContent} />
+      <div className={styles.onboardingSiteDetails}>
+        <p className={styles.onboardingCredentialHint}>{isZh ? "第 1 步 / 3：企业资料" : "Step 1 / 3: Company profile"}</p>
+        <p className={styles.onboardingProfilePrompt}>{isZh ? "请填写企业名称和企业介绍。提交后会生成确认卡，确认后才会正式保存。" : "Fill in your company name and description. A review card will be created before anything is saved."}</p>
+        <label><span>{isZh ? "企业名称" : "Company name"}</span><Input value={profileName} maxLength={200} disabled={actionsDisabled} onChange={(event) => setProfileName(event.target.value)} /></label>
+        <label><span>{isZh ? "企业介绍" : "Company description"}</span><Textarea value={profileDescription} maxLength={10000} disabled={actionsDisabled} onChange={(event) => setProfileDescription(event.target.value)} /></label>
+        {formError ? <small role="alert">{formError}</small> : null}
+        <Button type="button" disabled={actionsDisabled} onClick={() => {
+          if (!profileName.trim() || !profileDescription.trim()) {
+            setFormError(isZh ? "请填写企业名称和企业介绍。" : "Company name and description are required.");
+            return;
+          }
+          setFormError("");
+          onStepDraftSubmit("profile", { name: profileName.trim(), description: profileDescription.trim() });
+        }}>{isZh ? "生成企业资料确认卡" : "Create company profile review"}</Button>
+      </div>
+    </div>
+  );
+}
+
 function OnboardingCompletionTaskContent({
   message,
   thinking,
@@ -1104,6 +1176,7 @@ function AssistantMessageContent({
   isZh,
   actionsDisabled,
   onAction,
+  onEditCard,
   isActiveStep,
   siteDraft,
   onSiteVariantChange,
@@ -1111,6 +1184,7 @@ function AssistantMessageContent({
   onSiteSubmit,
   onStepDraftSubmit,
   onBackStep,
+  profileEditDraft,
   onRestart,
   onFinish,
   onShowWorkspaceSelector,
@@ -1122,7 +1196,9 @@ function AssistantMessageContent({
       {message.isStreaming ? (
         <Loader2 size={12} className={styles.streamingIcon} aria-label={thinking} />
       ) : null}
-      {message.presentation === "onboarding_step" && message.onboardingStep ? (
+      {message.presentation === "onboarding_welcome" ? (
+        <OnboardingWelcomeTaskContent isZh={isZh} actionsDisabled={actionsDisabled} profileEditDraft={profileEditDraft} onStepDraftSubmit={onStepDraftSubmit} />
+      ) : message.presentation === "onboarding_step" && message.onboardingStep ? (
         <OnboardingStepTaskContent
           message={message}
           thinking={thinking}
@@ -1135,6 +1211,7 @@ function AssistantMessageContent({
           onSiteSubmit={onSiteSubmit}
           onStepDraftSubmit={onStepDraftSubmit}
           onBackStep={onBackStep}
+          profileEditDraft={profileEditDraft}
         />
       ) : message.presentation === "onboarding_complete" ? (
         <OnboardingCompletionTaskContent
@@ -1158,6 +1235,7 @@ function AssistantMessageContent({
           disabled={actionsDisabled}
           isZh={isZh}
           onAction={onAction}
+          onEdit={onEditCard}
         />
       ) : null}
     </>
@@ -1181,12 +1259,14 @@ function UserAvatar() {
 }
 
 function getAssistantMessageBubbleClass(message: RailMessage) {
+  const isWelcome = message.presentation === "onboarding_welcome";
   const isStep = message.presentation === "onboarding_step";
   const isComplete = message.presentation === "onboarding_complete";
   return cn(
     styles.messageBubble,
     styles.bubbleLeft,
-    (message.onboardingCard || isStep || isComplete) && styles.messageBubbleWithCard,
+    (message.onboardingCard || isWelcome || isStep || isComplete) && styles.messageBubbleWithCard,
+    isWelcome && styles.onboardingWelcomeCard,
     isStep && styles.onboardingStepTaskCard,
     isComplete && styles.onboardingCompletionCard,
   );
@@ -1212,6 +1292,7 @@ export function CommandChatPanel({
     getSnapshotForAuthUser,
   );
   const onboardingContext = onboardingSession.context;
+  const [profileEditDraft, setProfileEditDraft] = useState({ name: "", description: "" });
   const showWorkspaceSelector = onboardingSession.showWorkspaceSelector;
   const isStreaming = localIsStreaming || onboardingSession.isStreaming;
   const visibleOnboardingMessages = useMemo(
@@ -1471,6 +1552,22 @@ export function CommandChatPanel({
     }
   }, [onboardingContext, onboardingSession.dismissed, sendChatRequest, shareKey]);
 
+  const handleEditOnboardingCard = useCallback((card: OnboardingCardData) => {
+    if (card.step !== "profile") return;
+    const values = Object.fromEntries(card.fields.map((field) => [field.key, field.value]));
+    setProfileEditDraft({ name: values.name ?? "", description: values.description ?? "" });
+    updateOnboardingSession((snapshot) => ({
+      ...snapshot,
+      messages: snapshot.messages.filter((message) => message.onboardingCard?.card_id !== card.card_id),
+    }));
+    const workspaceId = onboardingContext?.workspace_id ?? readOnboardingWorkspaceId();
+    if (!workspaceId) return;
+    void sendOnboardingSessionRequest(
+      { workspace_id: workspaceId, action: { type: "cancel_onboarding_card", card_id: card.card_id, step: "profile" } },
+      isZh ? "编辑企业资料" : "Edit company profile",
+    );
+  }, [isZh, onboardingContext?.workspace_id]);
+
   const handleOnboardingAction = useCallback((
     card: OnboardingCardData,
     action: OnboardingCardAction,
@@ -1628,6 +1725,8 @@ export function CommandChatPanel({
     );
   }, [isZh, onboardingContext]);
 
+  const [restartOnboardingConfirm, setRestartOnboardingConfirm] = useState(false);
+
   const handleFinishOnboarding = useCallback(() => {
     const workspaceId = onboardingContext?.workspace_id;
     if (!workspaceId) return;
@@ -1690,8 +1789,33 @@ export function CommandChatPanel({
       onAbandon={handleAbandonOnboarding}
     />
   );
+  const resumeOnboardingEntry = onboardingSession.dismissed
+    && (onboardingContext?.status === "paused" || onboardingContext?.status === "not_started") ? (
+      <div className={styles.restartOnboardingEntry} role="status">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const workspaceId = onboardingContext?.workspace_id ?? readOnboardingWorkspaceId();
+            if (!workspaceId) return;
+            const actionType = onboardingContext.status === "paused"
+              ? "continue_onboarding"
+              : "resume_onboarding";
+            void sendOnboardingSessionRequest(
+              { workspace_id: workspaceId, action: { type: actionType } },
+              isZh ? "继续入驻" : "Continue onboarding",
+            );
+          }}
+          disabled={isStreaming}
+        >
+          <RotateCcw data-icon="inline-start" aria-hidden="true" />
+          {onboardingContext.status === "paused" ? (isZh ? "继续入驻" : "Continue onboarding") : (isZh ? "开始入驻" : "Start onboarding")}
+        </Button>
+      </div>
+    ) : null;
   const onboardingActionsDisabled = isStreaming
-    || onboardingContext?.status !== "in_progress"
+    || !["not_started", "in_progress"].includes(onboardingContext?.status ?? "")
     || ["processing", "result_unknown"].includes(onboardingContext?.execution?.status ?? "");
   const completionNotice = onboardingSession.completionNotice ? (
     <div className={styles.onboardingCompletionNotice} role="status" aria-live="polite">
@@ -1699,6 +1823,33 @@ export function CommandChatPanel({
       <span>{onboardingSession.completionNotice}</span>
     </div>
   ) : null;
+  const restartOnboardingEntry = onboardingContext?.status === "completed"
+    && onboardingContext.completion_acknowledged ? (
+      <div className={styles.restartOnboardingEntry} role="status">
+        {!restartOnboardingConfirm ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setRestartOnboardingConfirm(true)}
+            disabled={isStreaming}
+          >
+            <RotateCcw data-icon="inline-start" aria-hidden="true" />
+            {isZh ? "重新入驻" : "Restart onboarding"}
+          </Button>
+        ) : (
+          <>
+            <span>{isZh ? "重新入驻会清除当前引导进度，确定继续吗？" : "Restarting will clear the current onboarding progress. Continue?"}</span>
+            <Button type="button" size="sm" onClick={handleRestartOnboarding} disabled={isStreaming}>
+              {isZh ? "确认" : "Confirm"}
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setRestartOnboardingConfirm(false)} disabled={isStreaming}>
+              {isZh ? "取消" : "Cancel"}
+            </Button>
+          </>
+        )}
+      </div>
+    ) : null;
 
   function handleRailKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey) {
@@ -1717,6 +1868,8 @@ export function CommandChatPanel({
 
         {onboardingContextPanel}
         {completionNotice}
+        {restartOnboardingEntry}
+        {resumeOnboardingEntry}
 
         {displayMessages.length === 0 ? (
           <div className={styles.railQuestionList} aria-label={isZh ? "常见问题" : "Common questions"}>
@@ -1735,6 +1888,7 @@ export function CommandChatPanel({
               data-chat-message-id={message.id}
               className={cn(
                 message.speaker === "assistant" ? styles.messageRowLeft : styles.messageRowRight,
+                message.presentation === "onboarding_welcome" && styles.onboardingWelcomeRow,
                 message.presentation === "onboarding_step" && styles.onboardingStepTaskRow,
                 message.presentation === "onboarding_complete" && styles.onboardingCompletionRow,
               )}
@@ -1756,6 +1910,8 @@ export function CommandChatPanel({
                       onStepDraftSubmit={handleStepDraftSubmit}
                       onBackStep={handleBackOnboardingStep}
                       onAction={handleOnboardingAction}
+                      onEditCard={handleEditOnboardingCard}
+                      profileEditDraft={profileEditDraft}
                       onRestart={handleRestartOnboarding}
                       onFinish={handleFinishOnboarding}
                       onShowWorkspaceSelector={() => setOnboardingWorkspaceSelectorVisible(true)}
@@ -1814,6 +1970,8 @@ export function CommandChatPanel({
       <section className={styles.chatPagePanel} aria-label={isZh ? "完整对话页面" : "Full chat page"}>
         {onboardingContextPanel}
         {completionNotice}
+        {restartOnboardingEntry}
+        {resumeOnboardingEntry}
         <div className={styles.chatThread} ref={chatContainerRef}>
           {displayMessages.length === 0 ? (
             <p className={styles.chatRailIntro}>{fullIntro}</p>
@@ -1824,6 +1982,7 @@ export function CommandChatPanel({
                 data-chat-message-id={message.id}
                 className={cn(
                   message.speaker === "assistant" ? styles.messageRowLeft : styles.messageRowRight,
+                  message.presentation === "onboarding_welcome" && styles.onboardingWelcomeRow,
                   message.presentation === "onboarding_step" && styles.onboardingStepTaskRow,
                   message.presentation === "onboarding_complete" && styles.onboardingCompletionRow,
                 )}
@@ -1845,6 +2004,8 @@ export function CommandChatPanel({
                         onStepDraftSubmit={handleStepDraftSubmit}
                         onBackStep={handleBackOnboardingStep}
                         onAction={handleOnboardingAction}
+                        onEditCard={handleEditOnboardingCard}
+                        profileEditDraft={profileEditDraft}
                         onRestart={handleRestartOnboarding}
                         onFinish={handleFinishOnboarding}
                         onShowWorkspaceSelector={() => setOnboardingWorkspaceSelectorVisible(true)}
@@ -1900,6 +2061,8 @@ export function CommandChatPanel({
     <section className={styles.chatEntryPanel} aria-label={isZh ? "首页 AI 助理入口" : "Home AI assistant"}>
       {onboardingContextPanel}
       {completionNotice}
+      {restartOnboardingEntry}
+      {resumeOnboardingEntry}
       {/* 没消息时显示推荐问题 */}
       {displayMessages.length === 0 ? (
         <div className={styles.questionChips} aria-label={isZh ? "常见问题" : "Common questions"}>
@@ -1918,6 +2081,7 @@ export function CommandChatPanel({
               data-chat-message-id={message.id}
               className={cn(
                 message.speaker === "assistant" ? styles.messageRowLeft : styles.messageRowRight,
+                message.presentation === "onboarding_welcome" && styles.onboardingWelcomeRow,
                 message.presentation === "onboarding_step" && styles.onboardingStepTaskRow,
                 message.presentation === "onboarding_complete" && styles.onboardingCompletionRow,
               )}
@@ -1939,6 +2103,8 @@ export function CommandChatPanel({
                       onStepDraftSubmit={handleStepDraftSubmit}
                       onBackStep={handleBackOnboardingStep}
                       onAction={handleOnboardingAction}
+                      onEditCard={handleEditOnboardingCard}
+                      profileEditDraft={profileEditDraft}
                       onRestart={handleRestartOnboarding}
                       onFinish={handleFinishOnboarding}
                       onShowWorkspaceSelector={() => setOnboardingWorkspaceSelectorVisible(true)}
