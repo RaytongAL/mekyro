@@ -61,7 +61,7 @@ export function LoginForm({
       });
 
       if (!data || data.code !== 200) {
-        setError(data?.message || t("auth.loginFailed"));
+        setError(data?.code === 401 ? t("auth.invalidCredentials") : t("auth.loginFailed"));
         setLoading(false);
         return;
       }

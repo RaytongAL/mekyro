@@ -327,6 +327,7 @@
     "wrongEntrance": "Account does not belong to this entry",
     "networkError": "Cannot connect to server, please retry later",
     "loggingIn": "Signing in...",
+    "invalidCredentials": "Incorrect account or password",
     "loginFailed": "Login failed",
     "emptyPhone": "Please enter a phone number",
     "emptyPhoneOrCode": "Please enter phone number and verification code",
