@@ -1081,25 +1081,27 @@ export function SupplierManagementPage() {
       </Sheet>
 
       {/* ==================== 停用确认对话框 ==================== */}
-      <Dialog open={!!disableTarget} onOpenChange={(open) => { if (!open) setDisableTarget(null); }}>
-        <DialogContent className={styles.createDialog} showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>{t("ops.supplierAccountsDisableTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("ops.supplierAccountsDisableConfirm", { name: disableTarget?.workspace_name ?? "" })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDisableTarget(null)} disabled={disabling}>
-              {t("common.cancel")}
-            </Button>
-            <Button variant="destructive" onClick={confirmDisable} disabled={disabling}>
-              {disabling ? <Loader2 size={14} className={styles.spinIcon} /> : null}
-              {t("ops.supplierAccountsConfirmDisable")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {disableTarget ? (
+        <Dialog open onOpenChange={(open) => { if (!open) setDisableTarget(null); }}>
+          <DialogContent className={styles.createDialog} showCloseButton={false}>
+            <DialogHeader>
+              <DialogTitle>{t("ops.supplierAccountsDisableTitle")}</DialogTitle>
+              <DialogDescription>
+                {t("ops.supplierAccountsDisableConfirm", { name: disableTarget.workspace_name })}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDisableTarget(null)} disabled={disabling}>
+                {t("common.cancel")}
+              </Button>
+              <Button variant="destructive" onClick={confirmDisable} disabled={disabling}>
+                {disabling ? <Loader2 size={14} className={styles.spinIcon} /> : null}
+                {t("ops.supplierAccountsConfirmDisable")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
 
       {/* ==================== 删除确认对话框 ==================== */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
