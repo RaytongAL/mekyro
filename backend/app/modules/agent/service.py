@@ -21,7 +21,7 @@ from app.core.models import (
     utcnow,
 )
 from app.core.secrets import decrypt_secret, encrypt_secret, mask_secret
-from app.modules.agent.gateway import AgentPlan, ModelGateway, ToolCall
+from app.modules.agent.gateway import AgentPlan, ModelGateway, ModelGatewayError, ToolCall
 from app.modules.agent.registry import get_tool
 from app.modules.agent.tools import execute_tool
 from app.modules.workspaces.onboarding_router import (
@@ -821,11 +821,21 @@ def _onboarding_prompt(state: dict) -> str:
         "profile": "请填写企业名称和企业介绍。信息整理完成后，我会生成确认内容供你检查。",
         "site": "企业资料已经确认。接下来请选择网站类型，并填写对应的网站信息。",
         "leads": (
-            "最后，请填写目标行业、客户类型、目标国家或地区以及希望推广的产品。"
-            "我会把这些内容整理成获客需求供你确认。"
+            "最后，请填写一段总体线索获取需求。AI 会先优化表达，再生成确认卡供你确认。"
         ),
     }
     return prompts.get(str(step), "入驻信息已经完成，你可以继续使用 AI 助理。")
+
+
+async def _optimize_lead_requirement(gateway: ModelGateway, requirement: str) -> str:
+    normalized = " ".join(requirement.split()).strip()
+    if not normalized:
+        return normalized
+    try:
+        return await gateway.optimize_lead_requirement(normalized)
+    except (AttributeError, ModelGatewayError):
+        logger.warning("Lead requirement optimization failed; using original input")
+        return normalized
 
 
 def _public_onboarding_card(card: dict, execution: dict | None = None) -> dict:
@@ -922,6 +932,7 @@ async def _onboarding_action(
     context: WorkspaceContext,
     session: AsyncSession,
     settings: Settings,
+    gateway: ModelGateway,
 ) -> AsyncIterator[str]:
     action_type = str(action.get("type") or "")
     if context.role not in WRITE_ROLES and action_type not in {
@@ -1089,6 +1100,18 @@ async def _onboarding_action(
                 },
             )
         return
+    if action_type == "save_onboarding_draft" and action.get("step") == "leads":
+        answers = action.get("answers") if isinstance(action.get("answers"), dict) else {}
+        requirement = await _optimize_lead_requirement(
+            gateway,
+            str(answers.get("requirement_description") or ""),
+        )
+        if requirement:
+            action = {
+                **action,
+                "answers": {"requirement_description": requirement},
+            }
+
     mapping = {
         "pause_onboarding": ("onboarding_pause", {}),
         "continue_onboarding": ("onboarding_continue", {}),
@@ -1319,7 +1342,9 @@ async def _natural_onboarding(
         )
         answers = {"site_type": site_type, "vendure_url": url}
     else:
-        answers = {"requirement_description": message.strip()}
+        answers = {
+            "requirement_description": await _optimize_lead_requirement(gateway, message),
+        }
     result, error = await _run_onboarding_direct(
         "onboarding_save_step_draft",
         {"step": step, "answers": answers},
@@ -1426,6 +1451,7 @@ async def chat_stream(
                 context=context,
                 session=session,
                 settings=settings,
+                gateway=gateway,
             ):
                 yield event
         elif action_type == "run_tool":

@@ -85,6 +85,8 @@ class AgentPlan:
 class ModelGateway(Protocol):
     async def plan(self, *, message: str, history: list[dict]) -> AgentPlan: ...
 
+    async def optimize_lead_requirement(self, requirement: str) -> str: ...
+
 
 class ModelGatewayError(RuntimeError):
     pass
@@ -184,9 +186,52 @@ class OpenAICompatibleModelGateway:
             tool_calls=tuple(tool_calls),
         )
 
+    async def optimize_lead_requirement(self, requirement: str) -> str:
+        payload = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "你是 Mekyro 的获客需求文字润色助手，只能改写用户已经提供的内容，不能扩写需求。"
+                        "地区、行业、客户类型、产品名称和渠道名称必须原样保留，不得替换、泛化或添加同义对象。"
+                        "严禁新增采购能力、合作意向、采购频率、采购数量、联系方式或其他筛选条件，"
+                        "也不得使用‘包括但不限于’补充示例。"
+                        "只输出一条通顺、简洁的简体中文句子，不要标题、列表、解释或引号，最多 150 字。"
+                    ),
+                },
+                {"role": "user", "content": requirement},
+            ],
+            "stream": False,
+            "temperature": 0.2,
+            "max_tokens": 200,
+        }
+        try:
+            if self.client is None:
+                async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+                    response = await client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers={"Authorization": f"Bearer {self.api_key}"},
+                        json=payload,
+                    )
+            else:
+                response = await self.client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    json=payload,
+                )
+            response.raise_for_status()
+            optimized = str(response.json()["choices"][0]["message"]["content"] or "").strip()
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
+            raise ModelGatewayError("Lead requirement optimization failed") from exc
+        return optimized or requirement
+
 
 class DeterministicModelGateway:
     """Offline fallback used by development, tests, and provider outages."""
+
+    async def optimize_lead_requirement(self, requirement: str) -> str:
+        return " ".join(requirement.split()).strip()
 
     async def plan(self, *, message: str, history: list[dict]) -> AgentPlan:
         normalized = " ".join(message.strip().split())

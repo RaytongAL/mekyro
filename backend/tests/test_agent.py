@@ -564,17 +564,41 @@ def test_agent_onboarding_resume_card_confirm_pause_continue_and_duplicate_apply
         )
     )
     assert event(site_confirmed, "onboarding_context")["current_step"] == "leads"
+
+    class LeadOptimizationGateway:
+        async def optimize_lead_requirement(self, requirement: str) -> str:
+            assert requirement == "European distributors seeking recurring refurbished inventory"
+            return "持续寻找欧洲地区有长期翻新设备采购需求的分销商。"
+
+    client.app.state.agent_gateway = LeadOptimizationGateway()
     lead_card_events = parse_sse(
         client.post(
             agent_url(),
             headers=auth_header(newlife_token),
             json={
                 "conversation_id": conversation_id,
-                "message": "European distributors seeking recurring refurbished inventory",
+                "action": {
+                    "type": "save_onboarding_draft",
+                    "step": "leads",
+                    "answers": {
+                        "requirement_description": (
+                            "European distributors seeking recurring refurbished inventory"
+                        )
+                    },
+                },
             },
         )
     )
     lead_card = event(lead_card_events, "onboarding_card")
+    requirement_field = next(
+        field for field in lead_card["fields"] if field["key"] == "requirement_description"
+    )
+    assert requirement_field["value"] == "持续寻找欧洲地区有长期翻新设备采购需求的分销商。"
+    detail_before_confirmation = client.get(
+        f"/api/v1/workspaces/{IDS['workspace_newlife']}",
+        headers=auth_header(newlife_token),
+    ).json()
+    assert detail_before_confirmation["lead_acquisition_requirement"] != requirement_field["value"]
     backed = parse_sse(
         client.post(
             agent_url(),

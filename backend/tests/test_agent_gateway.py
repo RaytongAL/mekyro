@@ -11,6 +11,7 @@ from app.modules.agent.gateway import (
     OpenAICompatibleModelGateway,
 )
 from app.modules.agent.registry import TOOLS, openai_tools
+from app.modules.agent.service import _optimize_lead_requirement
 
 
 def test_agent_openai_tool_schemas_cover_complete_registry():
@@ -149,6 +150,81 @@ async def test_openai_compatible_gateway_sends_tool_results_for_continuation():
     assert captured["payload"]["messages"][-2:] == history[-2:]
     assert plan.text == "当前库存为 12 件。"
     assert plan.tool_calls == ()
+
+
+@pytest.mark.asyncio
+async def test_openai_compatible_gateway_optimizes_lead_requirement_without_inventing_fields():
+    captured = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured["authorization"] = request.headers["Authorization"]
+        captured["payload"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": "持续寻找欧美地区经营二手机并拥有线下门店或批发渠道的采购商。"
+                        }
+                    }
+                ]
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        gateway = OpenAICompatibleModelGateway(
+            api_key="deepseek-secret",
+            base_url="https://api.deepseek.com/",
+            model="deepseek-chat",
+            client=client,
+        )
+        optimized = await gateway.optimize_lead_requirement(
+            "找欧美做二手机、有线下门店或者批发渠道的采购商"
+        )
+
+    assert captured["authorization"] == "Bearer deepseek-secret"
+    assert captured["payload"]["model"] == "deepseek-chat"
+    assert captured["payload"]["stream"] is False
+    assert captured["payload"]["temperature"] == 0.2
+    assert captured["payload"]["messages"][-1]["content"] == (
+        "找欧美做二手机、有线下门店或者批发渠道的采购商"
+    )
+    system_prompt = captured["payload"]["messages"][0]["content"]
+    assert "不能扩写需求" in system_prompt
+    assert "产品名称和渠道名称必须原样保留" in system_prompt
+    assert "严禁新增采购能力" in system_prompt
+    assert optimized == "持续寻找欧美地区经营二手机并拥有线下门店或批发渠道的采购商。"
+
+
+@pytest.mark.asyncio
+async def test_openai_compatible_gateway_maps_lead_optimization_failure():
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"error": "unavailable"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        gateway = OpenAICompatibleModelGateway(
+            api_key="secret",
+            base_url="https://api.deepseek.com",
+            model="deepseek-chat",
+            client=client,
+        )
+        with pytest.raises(ModelGatewayError, match="Lead requirement optimization failed"):
+            await gateway.optimize_lead_requirement("寻找欧洲采购商")
+
+
+@pytest.mark.asyncio
+async def test_lead_requirement_optimization_falls_back_to_normalized_original_text():
+    class FailingGateway:
+        async def optimize_lead_requirement(self, _requirement: str) -> str:
+            raise ModelGatewayError("provider unavailable")
+
+    optimized = await _optimize_lead_requirement(
+        FailingGateway(),
+        "  持续寻找欧美地区\n经营二手机的采购商  ",
+    )
+
+    assert optimized == "持续寻找欧美地区 经营二手机的采购商"
 
 
 @pytest.mark.asyncio

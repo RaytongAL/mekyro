@@ -748,15 +748,7 @@ function OnboardingStepTaskContent({
   const step = message.onboardingStep;
   const [profileName, setProfileName] = useState("");
   const [profileDescription, setProfileDescription] = useState("");
-  const [leadIndustry, setLeadIndustry] = useState("");
-  const [leadSubject, setLeadSubject] = useState("");
-  const [leadCountries, setLeadCountries] = useState("");
-  const [leadCustomerFeatures, setLeadCustomerFeatures] = useState("");
-  const [leadProducts, setLeadProducts] = useState("");
-  const [leadExclusions, setLeadExclusions] = useState("");
-  const [leadContactRequirements, setLeadContactRequirements] = useState(
-    "公开 Email、电话或 WhatsApp 任意一种即可，不得推测或补全。",
-  );
+  const [leadRequirement, setLeadRequirement] = useState("");
   const [formError, setFormError] = useState("");
   useEffect(() => {
     if (profileEditDraft.name || profileEditDraft.description) {
@@ -779,25 +771,13 @@ function OnboardingStepTaskContent({
   }
 
   function submitLeadRequirement() {
-    if (
-      !leadIndustry.trim()
-      || !leadSubject.trim()
-      || !leadCountries.trim()
-      || !leadCustomerFeatures.trim()
-      || !leadProducts.trim()
-    ) {
-      setFormError(isZh ? "请完整填写所有必填获客字段。" : "Complete all required acquisition fields.");
+    if (!leadRequirement.trim()) {
+      setFormError(isZh ? "请填写总体线索获取需求。" : "Enter the overall lead acquisition requirement.");
       return;
     }
     setFormError("");
     onStepDraftSubmit("leads", {
-      target_industry: leadIndustry.trim(),
-      target_subject: leadSubject.trim(),
-      target_countries: leadCountries.trim(),
-      customer_features: leadCustomerFeatures.trim(),
-      product_whitelist: leadProducts.trim(),
-      exclusions: leadExclusions.trim(),
-      contact_requirements: leadContactRequirements.trim(),
+      requirement_description: leadRequirement.trim(),
     });
   }
 
@@ -940,81 +920,25 @@ function OnboardingStepTaskContent({
       {isActiveStep && step.currentStep === "leads" ? (
         <div className={styles.onboardingSiteDetails}>
           <label>
-            <span>{isZh ? "目标行业 *" : "Target industry *"}</span>
-            <Input
-              value={leadIndustry}
-              maxLength={500}
-              placeholder={isZh ? "例如：二手及翻新手机" : "e.g. Used and refurbished phones"}
-              disabled={actionsDisabled}
-              onChange={(event) => setLeadIndustry(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>{isZh ? "目标主体 *" : "Target subject *"}</span>
+            <span>{isZh ? "总体线索获取需求 *" : "Overall lead acquisition requirement *"}</span>
             <Textarea
-              value={leadSubject}
-              maxLength={1000}
-              placeholder={isZh ? "例如：批发商、分销商、零售商和回收商" : "e.g. Wholesalers, distributors, retailers"}
-              disabled={actionsDisabled}
-              onChange={(event) => setLeadSubject(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>{isZh ? "目标国家或地区 *" : "Target countries or regions *"}</span>
-            <Input
-              value={leadCountries}
-              maxLength={500}
-              placeholder={isZh ? "例如：英国、德国、美国；不限制可填“不限”" : "e.g. UK, Germany, US; or Any"}
-              disabled={actionsDisabled}
-              onChange={(event) => setLeadCountries(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>{isZh ? "目标客户特征 *" : "Customer features *"}</span>
-            <Textarea
-              value={leadCustomerFeatures}
+              value={leadRequirement}
               maxLength={2000}
-              placeholder={isZh ? "经营品类、采购场景、销售渠道、目标人群等" : "Products, buying scenarios, channels and audiences"}
+              rows={6}
+              placeholder={isZh
+                ? "例如：持续寻找欧美地区经营二手机、拥有线下门店或批发渠道的采购商"
+                : "e.g. Continuously find buyers in Europe and the US that sell used phones and operate retail stores or wholesale channels"}
               disabled={actionsDisabled}
-              onChange={(event) => setLeadCustomerFeatures(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>{isZh ? "我方产品白名单 *" : "Product whitelist *"}</span>
-            <Textarea
-              value={leadProducts}
-              maxLength={2000}
-              placeholder={isZh ? "每行一个产品；没有可推荐产品时填写“无”" : "One product per line; enter None if empty"}
-              disabled={actionsDisabled}
-              onChange={(event) => setLeadProducts(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>{isZh ? "排除对象" : "Exclusions"}</span>
-            <Textarea
-              value={leadExclusions}
-              maxLength={2000}
-              placeholder={isZh ? "每行一个排除条件；系统默认排除无公开联系方式及无直接证据的主体" : "One exclusion per line"}
-              disabled={actionsDisabled}
-              onChange={(event) => setLeadExclusions(event.target.value)}
-            />
-          </label>
-          <label>
-            <span>{isZh ? "联系方式要求" : "Contact requirements"}</span>
-            <Textarea
-              value={leadContactRequirements}
-              maxLength={1000}
-              disabled={actionsDisabled}
-              onChange={(event) => setLeadContactRequirements(event.target.value)}
+              onChange={(event) => setLeadRequirement(event.target.value)}
             />
           </label>
           {formError ? <small role="alert">{formError}</small> : null}
           <p className={styles.onboardingCredentialHint}>
             {isZh
-              ? "确认后将生成公开线索 Agent 可直接读取的 Workspace Prompt；输出语言固定为简体中文，并启用公开证据质量约束。"
-              : "Confirmation creates a Workspace Prompt compatible with the public lead agent."}
+              ? "AI 会先优化这段需求并生成确认卡，确认后再保存到供应商配置。"
+              : "AI will optimize this requirement and create a review card before saving it to supplier settings."}
           </p>
-          <Button type="button" disabled={actionsDisabled} onClick={submitLeadRequirement}>{isZh ? "生成获客配置确认卡" : "Create acquisition review card"}</Button>
+          <Button type="button" disabled={actionsDisabled} onClick={submitLeadRequirement}>{isZh ? "AI 优化并生成确认卡" : "Optimize with AI and create review card"}</Button>
         </div>
       ) : null}
       {isActiveStep && step.currentStep !== "profile" ? (
