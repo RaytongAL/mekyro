@@ -111,7 +111,16 @@ const t = {
   selectCountry: { "zh-CN": "请选择国家", "en-US": "Select country" },
   submitting: { "zh-CN": "提交中...", "en-US": "Submitting..." },
   validationPrefix: { "zh-CN": "请填写", "en-US": "Please fill in" },
-  successFallback: { "zh-CN": "提交成功", "en-US": "Submitted successfully" },
+  success: {
+    supplier: {
+      "zh-CN": "提交成功。我们会审核您的供应商资料，并通过您填写的联系方式与您联系。",
+      "en-US": "Submitted successfully. We will review your supplier profile and contact you using the details provided.",
+    },
+    buyer: {
+      "zh-CN": "提交成功。我们会根据您的采购需求进行匹配，并通过您填写的联系方式与您联系。",
+      "en-US": "Submitted successfully. We will match your buying requirements and contact you using the details provided.",
+    },
+  },
   failureFallback: { "zh-CN": "提交失败，请稍后重试", "en-US": "Submission failed, please try again later" },
   networkError: { "zh-CN": "网络错误，请检查网络后重试", "en-US": "Network error, please check your connection and try again" },
 } as const;
@@ -155,7 +164,7 @@ export function InquiryForm({ type, fields, ctaLabel, locale, onSuccess }: Inqui
       });
 
       if (res.code === 200) {
-        setResult({ ok: true, message: res.message ?? t.successFallback[locale] });
+        setResult({ ok: true, message: t.success[type][locale] });
         setValues(JSON.parse(initialValuesKey));
         onSuccess?.();
       } else {
