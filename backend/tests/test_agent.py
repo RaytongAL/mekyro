@@ -958,6 +958,52 @@ def test_paused_onboarding_conversation_answers_normal_questions(
     assert any(name == "text" and payload.get("text") for name, payload in answered)
 
 
+def test_paused_onboarding_resumes_from_natural_language_and_preserves_draft(
+    client: TestClient,
+    newlife_token: str,
+):
+    headers = auth_header(newlife_token)
+    resumed = parse_sse(
+        client.post(agent_url(), headers=headers, json={"action": {"type": "resume_onboarding"}})
+    )
+    conversation_id = event(resumed, "conversation")["conversation_id"]
+    drafted = parse_sse(
+        client.post(
+            agent_url(),
+            headers=headers,
+            json={
+                "conversation_id": conversation_id,
+                "message": "公司名称：恢复测试；公司简介：验证暂停后保留资料",
+            },
+        )
+    )
+    card_id = event(drafted, "onboarding_card")["card_id"]
+    paused = parse_sse(
+        client.post(
+            agent_url(),
+            headers=headers,
+            json={
+                "conversation_id": conversation_id,
+                "action": {"type": "pause_onboarding"},
+            },
+        )
+    )
+    assert event(paused, "onboarding_context")["status"] == "paused"
+
+    continued = parse_sse(
+        client.post(
+            agent_url(),
+            headers=headers,
+            json={"conversation_id": conversation_id, "message": "继续入驻"},
+        )
+    )
+    context = event(continued, "onboarding_context")
+    assert context["status"] == "in_progress"
+    assert context["current_step"] == "profile"
+    assert event(continued, "onboarding_card")["card_id"] == card_id
+    assert all(name != "tool_call" for name, _ in continued)
+
+
 def test_onboarding_welcome_is_only_shown_on_first_auto_resume(
     client: TestClient,
     newlife_token: str,

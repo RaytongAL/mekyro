@@ -1259,15 +1259,44 @@ async def _natural_onboarding(
 ) -> AsyncIterator[str]:
     state = normalize_state(context.workspace.onboarding_state)
     normalized_message = " ".join(message.lower().split())
-    if any(
+    resume_requested = any(
         value in normalized_message for value in ("开始入驻", "继续入驻")
     ) or normalized_message in {
         "onboarding",
         "start onboarding",
         "resume onboarding",
-    }:
+    }
+    if resume_requested:
+        if state["status"] == "paused":
+            continued, error = await _run_onboarding_direct(
+                "onboarding_continue",
+                {},
+                conversation=conversation,
+                context=context,
+                session=session,
+                settings=settings,
+            )
+            if error or not continued:
+                yield _public_error(
+                    error or "ONBOARDING_STATE_CONFLICT",
+                    "入驻流程暂时无法继续，请稍后重试。",
+                    retryable=bool(error and error.endswith("INTERNAL_ERROR")),
+                )
+                return
+            await session.refresh(context.workspace)
+            state = normalize_state(context.workspace.onboarding_state)
+            conversation.status = "onboarding"
+            await session.commit()
         yield sse("onboarding_context", _onboarding_context(context))
-        yield sse("text", {"text": _onboarding_prompt(state)})
+        step_state = state["steps"].get(state["current_step"], {})
+        pending = step_state.get("pending_card")
+        if pending:
+            yield sse(
+                "onboarding_card",
+                _public_onboarding_card(pending, step_state.get("execution")),
+            )
+        else:
+            yield sse("text", {"text": _onboarding_prompt(state)})
         return
     if state["status"] not in {"in_progress", "not_started"}:
         return
@@ -1415,11 +1444,19 @@ async def chat_stream(
                 yield event
         elif message:
             state = normalize_state(context.workspace.onboarding_state)
+            normalized_message = " ".join(message.lower().split())
+            resume_requested = any(
+                value in normalized_message for value in ("开始入驻", "继续入驻")
+            ) or normalized_message in {
+                "onboarding",
+                "start onboarding",
+                "resume onboarding",
+            }
             onboarding_is_active = state["status"] in {"in_progress", "not_started"}
-            if onboarding_is_active and (
-                conversation.status == "onboarding"
-                or any(value in message.lower() for value in ("入驻", "onboarding"))
-            ):
+            if (
+                onboarding_is_active
+                and (conversation.status == "onboarding" or resume_requested)
+            ) or (state["status"] == "paused" and resume_requested):
                 async for event in _natural_onboarding(
                     message,
                     conversation=conversation,
