@@ -192,6 +192,11 @@ async def test_openai_compatible_gateway_optimizes_lead_requirement_without_inve
     )
     system_prompt = captured["payload"]["messages"][0]["content"]
     assert "不能扩写需求" in system_prompt
+    assert "口语化、含糊或聊天式表达" in system_prompt
+    assert "想要一些" in system_prompt
+    assert "把商品卖给他们" in system_prompt
+    assert "不得在国家列表后添加‘等欧美国家’" in system_prompt
+    assert "寻找印度、芬兰的买家，向其销售现有商品" in system_prompt
     assert "产品名称和渠道名称必须原样保留" in system_prompt
     assert "严禁新增采购能力" in system_prompt
     assert optimized == "持续寻找欧美地区经营二手机并拥有线下门店或批发渠道的采购商。"
@@ -214,17 +219,24 @@ async def test_openai_compatible_gateway_maps_lead_optimization_failure():
 
 
 @pytest.mark.asyncio
-async def test_lead_requirement_optimization_falls_back_to_normalized_original_text():
+async def test_lead_requirement_optimization_does_not_fake_success_on_provider_failure():
     class FailingGateway:
         async def optimize_lead_requirement(self, _requirement: str) -> str:
             raise ModelGatewayError("provider unavailable")
 
-    optimized = await _optimize_lead_requirement(
-        FailingGateway(),
-        "  持续寻找欧美地区\n经营二手机的采购商  ",
-    )
+    with pytest.raises(ModelGatewayError, match="provider unavailable"):
+        await _optimize_lead_requirement(
+            FailingGateway(),
+            "  持续寻找欧美地区\n经营二手机的采购商  ",
+        )
 
-    assert optimized == "持续寻找欧美地区 经营二手机的采购商"
+
+@pytest.mark.asyncio
+async def test_deterministic_gateway_rejects_fake_lead_optimization():
+    gateway = DeterministicModelGateway()
+
+    with pytest.raises(ModelGatewayError, match="requires a configured model"):
+        await gateway.optimize_lead_requirement("想找一些海外买家")
 
 
 @pytest.mark.asyncio

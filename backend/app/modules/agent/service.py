@@ -831,11 +831,7 @@ async def _optimize_lead_requirement(gateway: ModelGateway, requirement: str) ->
     normalized = " ".join(requirement.split()).strip()
     if not normalized:
         return normalized
-    try:
-        return await gateway.optimize_lead_requirement(normalized)
-    except (AttributeError, ModelGatewayError):
-        logger.warning("Lead requirement optimization failed; using original input")
-        return normalized
+    return await gateway.optimize_lead_requirement(normalized)
 
 
 def _public_onboarding_card(card: dict, execution: dict | None = None) -> dict:
@@ -1102,10 +1098,19 @@ async def _onboarding_action(
         return
     if action_type == "save_onboarding_draft" and action.get("step") == "leads":
         answers = action.get("answers") if isinstance(action.get("answers"), dict) else {}
-        requirement = await _optimize_lead_requirement(
-            gateway,
-            str(answers.get("requirement_description") or ""),
-        )
+        try:
+            requirement = await _optimize_lead_requirement(
+                gateway,
+                str(answers.get("requirement_description") or ""),
+            )
+        except (AttributeError, ModelGatewayError):
+            logger.exception("Lead requirement optimization failed")
+            yield _public_error(
+                "LEAD_OPTIMIZATION_UNAVAILABLE",
+                "AI 优化暂时不可用，请稍后重试。原始内容尚未保存。",
+                retryable=True,
+            )
+            return
         if requirement:
             action = {
                 **action,
@@ -1342,9 +1347,17 @@ async def _natural_onboarding(
         )
         answers = {"site_type": site_type, "vendure_url": url}
     else:
-        answers = {
-            "requirement_description": await _optimize_lead_requirement(gateway, message),
-        }
+        try:
+            optimized_requirement = await _optimize_lead_requirement(gateway, message)
+        except (AttributeError, ModelGatewayError):
+            logger.exception("Lead requirement optimization failed")
+            yield _public_error(
+                "LEAD_OPTIMIZATION_UNAVAILABLE",
+                "AI 优化暂时不可用，请稍后重试。原始内容尚未保存。",
+                retryable=True,
+            )
+            return
+        answers = {"requirement_description": optimized_requirement}
     result, error = await _run_onboarding_direct(
         "onboarding_save_step_draft",
         {"step": step, "answers": answers},

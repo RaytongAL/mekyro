@@ -194,7 +194,13 @@ class OpenAICompatibleModelGateway:
                     "role": "system",
                     "content": (
                         "你是 Mekyro 的获客需求文字润色助手，只能改写用户已经提供的内容，不能扩写需求。"
+                        "必须把口语化、含糊或聊天式表达改写为清晰、专业、可执行的业务需求，"
+                        "例如去掉‘想要一些’‘那种’‘把商品卖给他们’等口语结构，改为‘寻找’‘目标市场’‘销售现有商品’等明确表达。"
                         "地区、行业、客户类型、产品名称和渠道名称必须原样保留，不得替换、泛化或添加同义对象。"
+                        "如果用户已经列出具体国家，又附带‘那种欧美国家’‘之类的地区’等错误或含糊归类，"
+                        "必须保留每个具体国家并删除错误归类，不得在国家列表后添加‘等欧美国家’。"
+                        "例如‘想要一些印度、芬兰那种欧美国家的买家，把内部的商品卖给他们’应改写为"
+                        "‘寻找印度、芬兰的买家，向其销售现有商品。’"
                         "严禁新增采购能力、合作意向、采购频率、采购数量、联系方式或其他筛选条件，"
                         "也不得使用‘包括但不限于’补充示例。"
                         "只输出一条通顺、简洁的简体中文句子，不要标题、列表、解释或引号，最多 150 字。"
@@ -231,7 +237,7 @@ class DeterministicModelGateway:
     """Offline fallback used by development, tests, and provider outages."""
 
     async def optimize_lead_requirement(self, requirement: str) -> str:
-        return " ".join(requirement.split()).strip()
+        raise ModelGatewayError("Lead requirement optimization requires a configured model")
 
     async def plan(self, *, message: str, history: list[dict]) -> AgentPlan:
         normalized = " ".join(message.strip().split())
