@@ -83,7 +83,7 @@ def test_site_variants_validate_replace_drafts_and_preserve_pending_card_on_back
     ).json()
     first_card = first["steps"]["site"]["pending_card"]
     assert first["steps"]["site"]["answers"]["site_type"] == "vendure"
-    assert first_card["fields"][0]["value"] == "Mekyro"
+    assert first_card["fields"][0]["value"] == "Mekyro独立站"
     second = client.put(
         f"{base}/steps/site/draft",
         headers=headers,
