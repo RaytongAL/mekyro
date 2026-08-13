@@ -287,9 +287,9 @@ def _card(step: str, answers: dict) -> dict:
         variant = answers.get("site_variant")
         site_type_value = {
             "shopify": "Shopify",
-            "self_hosted": "Mekyro独立站",
-            "vendure": "Mekyro独立站",
-            "independent": "Mekyro独立站",
+            "self_hosted": "Mekyro",
+            "vendure": "Mekyro",
+            "independent": "Mekyro",
             "none": "无",
         }.get(str(variant or answers["site_type"]), "无")
         fields = [{"key": "site_type", "label": "独立站类型", "value": site_type_value}]

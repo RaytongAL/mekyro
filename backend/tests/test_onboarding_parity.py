@@ -83,7 +83,7 @@ def test_site_variants_validate_replace_drafts_and_preserve_pending_card_on_back
     ).json()
     first_card = first["steps"]["site"]["pending_card"]
     assert first["steps"]["site"]["answers"]["site_type"] == "vendure"
-    assert first_card["fields"][0]["value"] == "Mekyro独立站"
+    assert first_card["fields"][0]["value"] == "Mekyro"
     second = client.put(
         f"{base}/steps/site/draft",
         headers=headers,
@@ -238,6 +238,14 @@ def test_structured_lead_onboarding_builds_lead_agent_prompt(
     assert client.post(
         f"{base}/steps/site/confirm", headers=headers, json={"confirmed": True}
     ).status_code == 200
+
+    async def read_site_type() -> str:
+        async with client.app.state.database.sessions() as session:
+            workspace = await session.get(Workspace, IDS["workspace_newlife"])
+            assert workspace is not None
+            return workspace.site_type
+
+    assert asyncio.run(read_site_type()) == "vendure"
 
     draft = client.put(
         f"{base}/steps/leads/draft",
