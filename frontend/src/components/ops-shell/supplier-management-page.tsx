@@ -612,7 +612,9 @@ export function SupplierManagementPage() {
                 const primary = ws.members.find((m) => m.role === "owner") ?? ws.members[0];
                 return (
                   <TableRow key={ws.workspace_id} style={{ opacity: ws.is_active ? 1 : 0.5 }}>
-                    <TableCell style={{ color: "var(--text-tertiary)", fontSize: 12 }}>{ws.workspace_id}</TableCell>
+                    <TableCell style={{ color: "var(--text-tertiary)", fontSize: 12 }}>
+                      <TruncatedCell>{ws.workspace_id}</TruncatedCell>
+                    </TableCell>
                     <TableCell><TruncatedCell>{primary?.username || "—"}</TruncatedCell></TableCell>
                     <TableCell><TruncatedCell>{ws.workspace_name}</TruncatedCell></TableCell>
                     <TableCell><TruncatedCell>{primary ? (primary.ws_user_name || primary.nickname || primary.username) : "—"}</TruncatedCell></TableCell>
