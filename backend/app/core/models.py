@@ -262,6 +262,7 @@ class Lead(Base, TimestampMixin):
         ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
     )
     source: Mapped[str] = mapped_column(String(30), default="manual")
+    platform_name: Mapped[str] = mapped_column(String(100), default="")
     external_ref: Mapped[str] = mapped_column(String(120))
     merchant_name: Mapped[str] = mapped_column(String(200))
     company_name: Mapped[str] = mapped_column(String(200))

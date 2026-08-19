@@ -40,7 +40,7 @@ def test_alembic_upgrades_empty_database_to_all_models_without_schema_drift(tmp_
     expected_tables = set(Base.metadata.tables) | {"alembic_version"}
     assert _table_names(database_path) == expected_tables
     current = _run_alembic(database_path, "current")
-    assert "0003_workspace_email_outreach (head)" in current.stdout
+    assert "0004_lead_platform_name (head)" in current.stdout
     drift = _run_alembic(database_path, "check")
     assert "No new upgrade operations detected" in drift.stdout
 

@@ -22,6 +22,7 @@ class LeadResponse(BaseModel):
     workspace_id: str
     workspace_name: str = ""
     source: str
+    platform_name: str
     external_ref: str
     merchant_name: str
     company_name: str
@@ -92,6 +93,7 @@ ALLOWED_STAGE_TRANSITIONS: dict[str, set[str]] = {
 
 class LeadCreateRequest(BaseModel):
     source: LeadSource = "manual"
+    platform_name: str = Field(default="", max_length=100)
     external_ref: str | None = Field(default=None, min_length=1, max_length=120)
     merchant_name: str = Field(min_length=1, max_length=200)
     company_name: str = Field(min_length=1, max_length=200)
@@ -110,6 +112,7 @@ class LeadCreateRequest(BaseModel):
 
 class LeadUpdateRequest(BaseModel):
     source: LeadSource | None = None
+    platform_name: str | None = Field(default=None, max_length=100)
     external_ref: str | None = Field(default=None, min_length=1, max_length=120)
     merchant_name: str | None = Field(default=None, min_length=1, max_length=200)
     company_name: str | None = Field(default=None, min_length=1, max_length=200)
@@ -183,6 +186,7 @@ def _new_lead(workspace_id: str, payload: LeadCreateRequest) -> Lead:
         id=new_id(),
         workspace_id=workspace_id,
         source=payload.source,
+        platform_name=payload.platform_name.strip(),
         external_ref=payload.external_ref or f"MAN-{new_id()}",
         merchant_name=payload.merchant_name,
         company_name=payload.company_name,
@@ -412,6 +416,8 @@ async def update_lead(
     previous_stage = lead.stage
     if "country" in changes:
         changes["country"] = changes["country"].upper()
+    if "platform_name" in changes:
+        changes["platform_name"] = changes["platform_name"].strip()
     for field_name, value in changes.items():
         setattr(lead, field_name, value)
     record_audit(

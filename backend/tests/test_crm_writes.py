@@ -12,6 +12,7 @@ def test_lead_write_workflow_is_audited(client: TestClient, newlife_token: str):
         headers=headers,
         json={
             "source": "manual",
+            "platform_name": " LinkedIn ",
             "external_ref": "TEST-CRM-001",
             "merchant_name": "Rome Circular Mobile",
             "company_name": "RCM SRL",
@@ -26,6 +27,8 @@ def test_lead_write_workflow_is_audited(client: TestClient, newlife_token: str):
     lead = create.json()
     assert lead["stage"] == "new"
     assert lead["country"] == "IT"
+    assert lead["platform_name"] == "LinkedIn"
+    assert len(lead["id"]) == 36
 
     invalid_transition = client.patch(
         f"{base}/leads/{lead['id']}",
@@ -33,6 +36,14 @@ def test_lead_write_workflow_is_audited(client: TestClient, newlife_token: str):
         json={"stage": "ordered"},
     )
     assert invalid_transition.status_code == 409
+
+    platform_change = client.patch(
+        f"{base}/leads/{lead['id']}",
+        headers=headers,
+        json={"platform_name": " WhatsApp "},
+    )
+    assert platform_change.status_code == 200
+    assert platform_change.json()["platform_name"] == "WhatsApp"
 
     stage_change = client.patch(
         f"{base}/leads/{lead['id']}",
