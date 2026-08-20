@@ -1,73 +1,85 @@
-# Mekyro 外部服务 API 文档
+# API 接口文档
 
-> 适用版本：FastAPI 后端  
-> 校对日期：2026-08-19  
-> 适用场景：外部 CRM、线索采集服务、商品系统、库存系统向 Mekyro 查询或同步数据
+> 适用版本：Mekyro FastAPI 后端
+> 更新时间：2026-08-20
+> 使用对象：线索采集服务、CRM、商品系统、库存系统等外部调用方
 
-## 1. 接入说明
+## 目录
 
-### 1.1 基础地址
+- [前置准备](#前置准备)
+- [一、外部接口：线索 CRUD](#一外部接口线索-crud)
+  - [1.1 线索列表查询](#11-线索列表查询)
+  - [1.2 线索详情查询](#12-线索详情查询)
+  - [1.3 创建线索](#13-创建线索)
+  - [1.4 批量创建线索](#14-批量创建线索)
+  - [1.5 更新线索](#15-更新线索)
+  - [1.6 删除线索](#16-删除线索)
+- [二、外部接口：联系记录 CRUD](#二外部接口联系记录-crud)
+  - [2.1 联系记录列表查询](#21-联系记录列表查询)
+  - [2.2 联系记录详情查询](#22-联系记录详情查询)
+  - [2.3 创建联系记录](#23-创建联系记录)
+  - [2.4 批量创建联系记录](#24-批量创建联系记录)
+  - [2.5 更新联系记录](#25-更新联系记录)
+  - [2.6 删除联系记录](#26-删除联系记录)
+- [三、外部接口：商品分类 CRUD](#三外部接口商品分类-crud)
+- [四、外部接口：商品 CRUD](#四外部接口商品-crud)
+- [五、外部接口：SKU 与阶梯价](#五外部接口sku-与阶梯价)
+- [六、外部接口：库存](#六外部接口库存)
+- [七、外部接口：工作区查询](#七外部接口工作区查询)
+- [八、权限编码说明](#八权限编码说明)
+- [九、枚举值速查](#九枚举值速查)
+- [十、旧版接口迁移对照](#十旧版接口迁移对照)
 
-| 环境 | Base URL |
+---
+
+## 前置准备
+
+### 基础 URL
+
+| 环境 | 地址 |
 |---|---|
 | 生产环境 | `https://www.mekyro.com/api/v1` |
-| 本地环境 | `http://127.0.0.1:8200/api/v1` |
+| 本地开发 | `http://127.0.0.1:8200/api/v1` |
+| 本地 Swagger | `http://127.0.0.1:8200/docs` |
 | 本地 OpenAPI JSON | `http://127.0.0.1:8200/openapi.json` |
-| 本地 Swagger UI | `http://127.0.0.1:8200/docs` |
 
-生产站点是否公开 Swagger/OpenAPI 取决于网关配置；外部集成应以本文档和正式提供的生产 Base URL 为准。
+本文接口示例均使用生产环境完整地址。
 
-本文后续路径均省略 Base URL。例如：
+### 鉴权方式
 
-```http
-GET /external/leads
-```
+外部接口统一使用 API Key 鉴权：
 
-生产环境完整地址为：
-
-```text
-https://www.mekyro.com/api/v1/external/leads
-```
-
-### 1.2 API Key 鉴权
-
-运营管理员在“API 密钥管理”中创建密钥，并为密钥绑定工作区和权限。创建成功时只返回一次完整密钥，调用方应安全保存。
-
-所有外部接口都必须携带：
+| Header | 必填 | 说明 |
+|---|---|---|
+| `X-Api-Key` | 是 | 在运营后台“API 密钥管理”创建时返回的完整密钥 |
+| `Content-Type` | JSON 请求必填 | 固定为 `application/json` |
+| `Idempotency-Key` | 库存写入建议必填 | 调用方生成的业务幂等键，重试时保持不变 |
 
 ```http
 X-Api-Key: mek_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-API Key 的工作区是服务端唯一的租户范围。请求体中不接收 `workspace_id`，外部服务不能借助参数跨工作区访问数据。
+> 每个 API Key 绑定一个工作区，并通过权限编码控制可访问的接口。工作区由服务端根据密钥自动注入，调用方不需要、也不能在请求体中指定 `workspace_id`。
 
-### 1.3 通用请求头
+### ID 类型
 
-```http
-X-Api-Key: <your_api_key>
-Content-Type: application/json
+当前接口中的线索、联系记录、分类、商品、SKU、工作区等 ID 均为 UUID 字符串，例如：
+
+```text
+7fd6f590-6ce8-4b75-bc7d-3602a02afd01
 ```
 
-库存写接口建议额外传递调用方生成的幂等键：
+不再使用旧版接口中的整数自增 ID。
 
-```http
-Idempotency-Key: inventory-order-20260819-0001
-```
+### 响应格式
 
-### 1.4 响应格式
-
-FastAPI 接口直接返回资源对象或列表，不再使用旧版 Django 的 `code/message/data` 包装。
-
-成功示例：
+FastAPI 直接返回资源对象、数组或分页对象，不再返回旧版的：
 
 ```json
-{
-  "id": "7fd6f590-6ce8-4b75-bc7d-3602a02afd01",
-  "merchant_name": "Example Buyer"
-}
+{"code": 200, "message": "操作成功", "data": {}}
 ```
 
-分页示例：
+分页响应格式：
 
 ```json
 {
@@ -78,199 +90,61 @@ FastAPI 接口直接返回资源对象或列表，不再使用旧版 Django 的 
 }
 ```
 
-删除成功返回 `204 No Content`，响应体为空。
-
-业务错误示例：
+错误响应格式：
 
 ```json
 {
-  "detail": "API key permission required: lead:create"
+  "detail": "错误原因"
 }
 ```
 
-参数校验失败返回 `422`，`detail` 为 FastAPI 校验错误数组。
+删除成功统一返回 `204 No Content`，没有响应体。
 
-### 1.5 常见状态码
+---
 
-| 状态码 | 含义 |
-|---|---|
-| `200` | 查询或更新成功 |
-| `201` | 创建成功 |
-| `204` | 删除成功，无响应体 |
-| `401` | API Key 缺失、无效、停用，或所属用户/工作区不可用 |
-| `403` | API Key 缺少当前接口要求的权限 |
-| `404` | 资源不存在，或资源不属于 API Key 绑定的工作区 |
-| `409` | 唯一约束冲突、非法状态流转、库存不足等业务冲突 |
-| `422` | 请求字段或查询参数校验失败 |
+## 一、外部接口：线索 CRUD
 
-## 2. 权限编码
+> 鉴权：`X-Api-Key`
+> 工作区：由 API Key 自动确定
 
-| 权限 | 控制范围 |
-|---|---|
-| `workspace:read` | 读取工作区提示词和每日线索量 |
-| `lead:read` | 查询线索 |
-| `lead:create` | 创建、批量创建线索 |
-| `lead:update` | 更新线索 |
-| `lead:delete` | 删除线索 |
-| `lead_contact_log:read` | 查询联系记录 |
-| `lead_contact_log:create` | 创建、批量创建联系记录 |
-| `lead_contact_log:update` | 更新联系记录 |
-| `lead_contact_log:delete` | 删除联系记录 |
-| `product:read` | 查询分类、商品、SKU |
-| `product:create` | 创建分类、商品、SKU |
-| `product:update` | 更新分类、商品、SKU、阶梯价 |
-| `product:delete` | 删除分类、商品、SKU |
-| `product_inventory:read` | 查询库存流水 |
-| `product_inventory:create` | 单条或批量执行出入库调整 |
+### 1.1 线索列表查询
 
-建议按最小权限原则创建密钥。例如，仅同步线索的服务通常只需要：
+支持关键字、跟进阶段、国家和来源类型筛选，支持分页。
 
-```json
-[
-  "lead:read",
-  "lead:create",
-  "lead:update"
-]
-```
-
-## 3. 路由总览
-
-### 3.1 工作区
-
-| 方法 | 路径 | 权限 |
-|---|---|---|
-| `GET` | `/external/workspace/prompt` | `workspace:read` |
-
-### 3.2 线索
-
-| 方法 | 路径 | 权限 |
-|---|---|---|
-| `GET` | `/external/leads` | `lead:read` |
-| `POST` | `/external/leads` | `lead:create` |
-| `POST` | `/external/leads/batch` | `lead:create` |
-| `GET` | `/external/leads/{lead_id}` | `lead:read` |
-| `PATCH` | `/external/leads/{lead_id}` | `lead:update` |
-| `DELETE` | `/external/leads/{lead_id}` | `lead:delete` |
-
-### 3.3 联系记录
-
-| 方法 | 路径 | 权限 |
-|---|---|---|
-| `GET` | `/external/leads/{lead_id}/contact-logs` | `lead_contact_log:read` |
-| `POST` | `/external/leads/{lead_id}/contact-logs` | `lead_contact_log:create` |
-| `POST` | `/external/leads/{lead_id}/contact-logs/batch` | `lead_contact_log:create` |
-| `GET` | `/external/contact-logs/{activity_id}` | `lead_contact_log:read` |
-| `PATCH` | `/external/contact-logs/{activity_id}` | `lead_contact_log:update` |
-| `DELETE` | `/external/contact-logs/{activity_id}` | `lead_contact_log:delete` |
-
-### 3.4 分类、商品和 SKU
-
-| 方法 | 路径 | 权限 |
-|---|---|---|
-| `GET` | `/external/categories` | `product:read` |
-| `POST` | `/external/categories` | `product:create` |
-| `GET` | `/external/categories/{category_id}` | `product:read` |
-| `PATCH` | `/external/categories/{category_id}` | `product:update` |
-| `DELETE` | `/external/categories/{category_id}` | `product:delete` |
-| `GET` | `/external/products` | `product:read` |
-| `POST` | `/external/products` | `product:create` |
-| `GET` | `/external/products/{product_id}` | `product:read` |
-| `PATCH` | `/external/products/{product_id}` | `product:update` |
-| `DELETE` | `/external/products/{product_id}` | `product:delete` |
-| `POST` | `/external/products/{product_id}/variants` | `product:create` |
-| `GET` | `/external/variants` | `product:read` |
-| `GET` | `/external/variants/{variant_id}` | `product:read` |
-| `PATCH` | `/external/variants/{variant_id}` | `product:update` |
-| `DELETE` | `/external/variants/{variant_id}` | `product:delete` |
-| `PUT` | `/external/variants/{variant_id}/price-tiers` | `product:update` |
-| `PATCH` | `/external/batch/variants` | `product:update` |
-| `PUT` | `/external/batch/price-tiers` | `product:update` |
-
-### 3.5 库存
-
-| 方法 | 路径 | 权限 |
-|---|---|---|
-| `GET` | `/external/inventory-movements` | `product_inventory:read` |
-| `POST` | `/external/inventory-adjustments` | `product_inventory:create` |
-| `POST` | `/external/batch/inventory-adjustments` | `product_inventory:create` |
-
-## 4. 工作区接口
-
-### 4.1 查询工作区提示词
-
-```http
-GET /external/workspace/prompt
-```
-
-响应：
-
-```json
-{
-  "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
-  "workspace_name": "上海芒可忆",
-  "prompt": "目标客户和获客要求",
-  "daily_lead_limit": 50
-}
-```
-
-## 5. 线索接口
-
-### 5.1 线索字段
-
-创建线索请求：
-
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `source` | string | 否 | 来源类型，默认 `manual` |
-| `platform_name` | string | 否 | 具体平台名称，例如 `WhatsApp`、`LinkedIn` |
-| `external_ref` | string | 否 | 外部系统唯一标识；不传时由系统生成 |
-| `merchant_name` | string | 是 | 商家或客户名称，最长 200 |
-| `company_name` | string | 是 | 公司名称，最长 200 |
-| `contact_person` | string | 否 | 联系人 |
-| `country` | string | 是 | 两位国家代码，例如 `CN`、`US` |
-| `city` | string | 否 | 城市 |
-| `zip_code` | string | 否 | 邮编 |
-| `description` | string | 否 | 描述，最长 10000 |
-| `email` | string | 否 | 邮箱 |
-| `phone` | string | 否 | 电话 |
-| `country_code` | string | 否 | 国际区号，例如 `+86` |
-| `whatsapp` | string | 否 | WhatsApp 联系方式 |
-| `recommendation_score` | integer | 否 | 推荐分，范围 0～100 |
-| `recommendation_reason` | string | 否 | 推荐理由 |
-
-`source` 枚举：
+**所需权限**
 
 ```text
-manual, website, amazon, trade_show, other
+lead:read
 ```
 
-注意：旧版文档中的 `platform` 不是当前数据字段。当前模型使用：
-
-- `source`：来源类型，使用固定枚举；
-- `platform_name`：具体平台名称，可填写 WhatsApp、LinkedIn 等。
-
-同一工作区内，`source + external_ref` 必须唯一。
-
-### 5.2 查询线索列表
+**请求**
 
 ```http
 GET /external/leads?search=Buyer&stage=new&country=US&source=manual&limit=20&offset=0
+X-Api-Key: <your_api_key>
 ```
 
-查询参数：
+| 查询参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `search` | string | 否 | 搜索商家名称、公司名称、联系人、邮箱 |
+| `stage` | string | 否 | 跟进阶段 |
+| `country` | string | 否 | 两位国家代码，如 `US`、`CN` |
+| `source` | string | 否 | 来源类型 |
+| `platform` | string | 否 | 兼容旧查询参数，值仍须为 source 枚举；新调用方使用 `source` |
+| `limit` | int | 否 | 返回数量，默认 20，最大 100 |
+| `offset` | int | 否 | 偏移量，默认 0 |
+| `page` | int | 否 | 兼容旧分页，默认第 1 页 |
+| `page_size` | int | 否 | 兼容旧分页，最大 100 |
 
-| 参数 | 说明 |
-|---|---|
-| `search` | 搜索商家名称、公司名称、联系人和邮箱 |
-| `stage` | 按跟进阶段筛选 |
-| `country` | 两位国家代码，不区分输入大小写 |
-| `source` | 按来源类型筛选 |
-| `platform` | 兼容旧调用方的查询参数，值必须是 `source` 枚举；建议新接入使用 `source` |
-| `limit` | 返回数量，默认 20，最大 100 |
-| `offset` | 偏移量，默认 0 |
-| `page`、`page_size` | 兼容旧分页方式；传入后换算为 limit/offset |
+**Postman 配置**
 
-响应：
+```text
+Method:  GET
+URL:     https://www.mekyro.com/api/v1/external/leads?stage=new&limit=20&offset=0
+Headers: X-Api-Key  <your_api_key>
+```
+
+**响应 — 成功（200）**
 
 ```json
 {
@@ -282,7 +156,7 @@ GET /external/leads?search=Buyer&stage=new&country=US&source=manual&limit=20&off
       "id": "7fd6f590-6ce8-4b75-bc7d-3602a02afd01",
       "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
       "workspace_name": "上海芒可忆",
-      "source": "manual",
+      "source": "other",
       "platform_name": "LinkedIn",
       "external_ref": "LINKEDIN-10001",
       "merchant_name": "Example Buyer",
@@ -299,18 +173,97 @@ GET /external/leads?search=Buyer&stage=new&country=US&source=manual&limit=20&off
       "stage": "new",
       "recommendation_score": 80,
       "recommendation_reason": "需求匹配",
-      "created_at": "2026-08-19T10:00:00Z",
-      "updated_at": "2026-08-19T10:00:00Z",
+      "created_at": "2026-08-20T10:00:00Z",
+      "updated_at": "2026-08-20T10:00:00Z",
       "latest_contact_at": null
     }
   ]
 }
 ```
 
-### 5.3 创建线索
+**cURL**
+
+```bash
+curl -X GET "https://www.mekyro.com/api/v1/external/leads?stage=new&country=US&limit=20&offset=0" \
+  -H "X-Api-Key: <your_api_key>"
+```
+
+---
+
+### 1.2 线索详情查询
+
+**所需权限**：`lead:read`
+
+**请求**
+
+```http
+GET /external/leads/{lead_id}
+X-Api-Key: <your_api_key>
+```
+
+**Postman 配置**
+
+```text
+Method:  GET
+URL:     https://www.mekyro.com/api/v1/external/leads/7fd6f590-6ce8-4b75-bc7d-3602a02afd01
+Headers: X-Api-Key  <your_api_key>
+```
+
+**响应 — 成功（200）**
+
+```json
+{
+  "id": "7fd6f590-6ce8-4b75-bc7d-3602a02afd01",
+  "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+  "workspace_name": "上海芒可忆",
+  "source": "other",
+  "platform_name": "LinkedIn",
+  "external_ref": "LINKEDIN-10001",
+  "merchant_name": "Example Buyer",
+  "company_name": "Example Buyer Ltd",
+  "contact_person": "Alex",
+  "country": "US",
+  "city": "New York",
+  "zip_code": "10001",
+  "description": "Interested in recurring purchases",
+  "email": "alex@example.com",
+  "phone": "",
+  "country_code": "+1",
+  "whatsapp": "",
+  "stage": "new",
+  "recommendation_score": 80,
+  "recommendation_reason": "需求匹配",
+  "created_at": "2026-08-20T10:00:00Z",
+  "updated_at": "2026-08-20T10:00:00Z",
+  "latest_contact_at": null
+}
+```
+
+**响应 — 不存在或不属于当前工作区（404）**
+
+```json
+{"detail": "Lead not found"}
+```
+
+**cURL**
+
+```bash
+curl -X GET "https://www.mekyro.com/api/v1/external/leads/{lead_id}" \
+  -H "X-Api-Key: <your_api_key>"
+```
+
+---
+
+### 1.3 创建线索
+
+**所需权限**：`lead:create`
+
+**请求**
 
 ```http
 POST /external/leads
+X-Api-Key: <your_api_key>
+Content-Type: application/json
 ```
 
 ```json
@@ -322,15 +275,93 @@ POST /external/leads
   "company_name": "Example Buyer Ltd",
   "contact_person": "Alex",
   "country": "US",
+  "city": "New York",
   "email": "alex@example.com",
   "recommendation_score": 80,
   "recommendation_reason": "需求匹配"
 }
 ```
 
-成功返回 `201` 和线索对象。
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `source` | string | 否 | 来源类型，默认 `manual` |
+| `platform_name` | string | 否 | 具体平台名，如 WhatsApp、LinkedIn |
+| `external_ref` | string | 否 | 外部系统唯一标识；不传则由系统生成 |
+| `merchant_name` | string | 是 | 商家或客户名称，最长 200 |
+| `company_name` | string | 是 | 公司名称，最长 200 |
+| `contact_person` | string | 否 | 联系人 |
+| `country` | string | 是 | 两位国家代码 |
+| `city` | string | 否 | 城市 |
+| `zip_code` | string | 否 | 邮编 |
+| `description` | string | 否 | 描述，最长 10000 |
+| `email` | string | 否 | 邮箱或空字符串 |
+| `phone` | string | 否 | 电话 |
+| `country_code` | string | 否 | 国际区号，如 `+86` |
+| `whatsapp` | string | 否 | WhatsApp 联系方式 |
+| `recommendation_score` | int | 否 | 0～100，默认 0 |
+| `recommendation_reason` | string | 否 | 推荐理由 |
 
-### 5.4 批量创建线索
+> 同一工作区内，`source + external_ref` 必须唯一。旧版 `platform` 数据字段已拆分为 `source` 和 `platform_name`，旧版 `merchant_id` 对应当前 `external_ref`。
+
+**响应 — 成功（201）**
+
+```json
+{
+  "id": "7fd6f590-6ce8-4b75-bc7d-3602a02afd01",
+  "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+  "workspace_name": "上海芒可忆",
+  "source": "other",
+  "platform_name": "LinkedIn",
+  "external_ref": "LINKEDIN-10001",
+  "merchant_name": "Example Buyer",
+  "company_name": "Example Buyer Ltd",
+  "contact_person": "Alex",
+  "country": "US",
+  "city": "New York",
+  "zip_code": "",
+  "description": "",
+  "email": "alex@example.com",
+  "phone": "",
+  "country_code": "",
+  "whatsapp": "",
+  "stage": "new",
+  "recommendation_score": 0,
+  "recommendation_reason": "",
+  "created_at": "2026-08-20T10:00:00Z",
+  "updated_at": "2026-08-20T10:00:00Z",
+  "latest_contact_at": null
+}
+```
+
+**响应 — 唯一标识重复（409）**
+
+```json
+{"detail": "Lead source and external reference already exist"}
+```
+
+**cURL**
+
+```bash
+curl -X POST "https://www.mekyro.com/api/v1/external/leads" \
+  -H "X-Api-Key: <your_api_key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "other",
+    "platform_name": "LinkedIn",
+    "external_ref": "LINKEDIN-10001",
+    "merchant_name": "Example Buyer",
+    "company_name": "Example Buyer Ltd",
+    "country": "US"
+  }'
+```
+
+---
+
+### 1.4 批量创建线索
+
+**所需权限**：`lead:create`
+
+**请求**
 
 ```http
 POST /external/leads/batch
@@ -358,73 +389,229 @@ POST /external/leads/batch
 }
 ```
 
-`items` 最少 1 条、最多 500 条。成功返回 `201` 和线索对象数组。批次中发生唯一约束冲突时整批回滚。
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `items` | array | 是 | 1～500 条，单项规则与创建线索相同 |
 
-### 5.5 查询、更新和删除线索
+**响应 — 成功（201）**
 
-```http
-GET /external/leads/{lead_id}
-PATCH /external/leads/{lead_id}
-DELETE /external/leads/{lead_id}
+直接返回线索对象数组：
+
+```json
+[
+  {"id": "uuid-1", "source": "website", "external_ref": "WEB-10001"},
+  {"id": "uuid-2", "source": "other", "external_ref": "WA-10002"}
+]
 ```
 
-更新示例：
+批次发生唯一约束冲突时，整批回滚。
+
+**cURL**
+
+```bash
+curl -X POST "https://www.mekyro.com/api/v1/external/leads/batch" \
+  -H "X-Api-Key: <your_api_key>" \
+  -H "Content-Type: application/json" \
+  -d '{"items":[{"merchant_name":"Buyer One","company_name":"Buyer One Ltd","country":"GB"}]}'
+```
+
+---
+
+### 1.5 更新线索
+
+**所需权限**：`lead:update`
+
+**请求**
+
+```http
+PATCH /external/leads/{lead_id}
+```
 
 ```json
 {
   "stage": "contacting",
+  "contact_person": "Alex Chen",
   "description": "External CRM started outreach"
 }
 ```
 
-跟进阶段枚举：
+所有字段均为可选，只传需要更新的字段。可更新创建字段以及：
 
-```text
-new, contacting, replied, qualified, quoting, ordered, lost
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `stage` | string | 跟进阶段，必须符合阶段流转规则 |
+| `recommendation_score` | int | 0～100 |
+| `recommendation_reason` | string | 推荐理由 |
+
+**响应 — 成功（200）**
+
+```json
+{
+  "id": "7fd6f590-6ce8-4b75-bc7d-3602a02afd01",
+  "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+  "workspace_name": "上海芒可忆",
+  "source": "other",
+  "platform_name": "LinkedIn",
+  "external_ref": "LINKEDIN-10001",
+  "merchant_name": "Example Buyer",
+  "company_name": "Example Buyer Ltd",
+  "contact_person": "Alex Chen",
+  "country": "US",
+  "city": "New York",
+  "zip_code": "10001",
+  "description": "External CRM started outreach",
+  "email": "alex@example.com",
+  "phone": "",
+  "country_code": "+1",
+  "whatsapp": "",
+  "stage": "contacting",
+  "recommendation_score": 80,
+  "recommendation_reason": "需求匹配",
+  "created_at": "2026-08-20T10:00:00Z",
+  "updated_at": "2026-08-20T10:05:00Z",
+  "latest_contact_at": null
+}
 ```
 
-阶段只能按业务状态机向后流转。例如 `new -> contacting` 合法，`ordered -> new` 会返回 `409`。
+**响应 — 非法阶段流转（409）**
 
-删除线索为硬删除，并删除联系记录；已关联订单和报价保留，但会解除线索关联。
-
-## 6. 联系记录接口
-
-### 6.1 创建字段
-
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `activity_type` | string | 否 | 联系记录类型 |
-| `direction` | string | 否 | `inbound` 或 `outbound` |
-| `channel` | string | 是 | 联系渠道 |
-| `subject` | string | 否 | 主题 |
-| `sender` | string | 否 | 发送方邮箱 |
-| `recipient` | string | 否 | 接收方邮箱 |
-| `content` | string | 是 | 联系内容，最长 10000 |
-
-`activity_type`：
-
-```text
-ai_outbound, human_outbound, customer_inbound
+```json
+{"detail": "Lead stage cannot transition from ordered to new"}
 ```
 
-`channel`：
+**cURL**
 
-```text
-email, whatsapp, phone, meeting, other
+```bash
+curl -X PATCH "https://www.mekyro.com/api/v1/external/leads/{lead_id}" \
+  -H "X-Api-Key: <your_api_key>" \
+  -H "Content-Type: application/json" \
+  -d '{"stage":"contacting"}'
 ```
 
-若只传 `activity_type`，系统会自动推导 `direction`。`customer_inbound` 对应 `inbound`，其他类型对应 `outbound`。
+---
 
-### 6.2 查询联系记录
+### 1.6 删除线索
+
+**所需权限**：`lead:delete`
+
+**请求**
+
+```http
+DELETE /external/leads/{lead_id}
+```
+
+线索和关联联系记录会被删除；已关联订单和报价会保留，但解除线索关联。
+
+**响应 — 成功（204）**
+
+无响应体。
+
+**cURL**
+
+```bash
+curl -X DELETE "https://www.mekyro.com/api/v1/external/leads/{lead_id}" \
+  -H "X-Api-Key: <your_api_key>"
+```
+
+---
+
+## 二、外部接口：联系记录 CRUD
+
+### 2.1 联系记录列表查询
+
+**所需权限**：`lead_contact_log:read`
+
+**请求**
 
 ```http
 GET /external/leads/{lead_id}/contact-logs?type=customer_inbound&channel=email&limit=50&offset=0
+```
+
+| 查询参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `type` | string | 否 | 联系记录类型 |
+| `channel` | string | 否 | 联系渠道 |
+| `search` | string | 否 | 搜索主题、发送方、接收方和正文 |
+| `limit` | int | 否 | 默认 50，最大 200 |
+| `offset` | int | 否 | 默认 0 |
+| `page`、`page_size` | int | 否 | 兼容旧分页，page_size 最大 200 |
+
+**响应 — 成功（200）**
+
+```json
+{
+  "total": 1,
+  "limit": 50,
+  "offset": 0,
+  "items": [
+    {
+      "id": "2cf08872-d61d-4026-bfd8-433c163537ff",
+      "lead_id": "7fd6f590-6ce8-4b75-bc7d-3602a02afd01",
+      "merchant_name": "Example Buyer",
+      "activity_type": "customer_inbound",
+      "direction": "inbound",
+      "channel": "email",
+      "subject": "Re: Product introduction",
+      "sender": "alex@example.com",
+      "recipient": "sales@mekyro.com",
+      "content": "Please send MOQ and pricing.",
+      "created_at": "2026-08-20T11:00:00Z"
+    }
+  ]
+}
+```
+
+**cURL**
+
+```bash
+curl -X GET "https://www.mekyro.com/api/v1/external/leads/{lead_id}/contact-logs?limit=50&offset=0" \
+  -H "X-Api-Key: <your_api_key>"
+```
+
+---
+
+### 2.2 联系记录详情查询
+
+**所需权限**：`lead_contact_log:read`
+
+```http
 GET /external/contact-logs/{activity_id}
 ```
 
-列表支持 `type`、`channel`、`search`、`limit/offset` 和兼容参数 `page/page_size`。
+**响应 — 成功（200）**
 
-### 6.3 创建和批量创建
+```json
+{
+  "id": "2cf08872-d61d-4026-bfd8-433c163537ff",
+  "lead_id": "7fd6f590-6ce8-4b75-bc7d-3602a02afd01",
+  "merchant_name": "Example Buyer",
+  "activity_type": "customer_inbound",
+  "direction": "inbound",
+  "channel": "email",
+  "subject": "Re: Product introduction",
+  "sender": "alex@example.com",
+  "recipient": "sales@mekyro.com",
+  "content": "Please send MOQ and pricing.",
+  "created_at": "2026-08-20T11:00:00Z"
+}
+```
+
+不存在或跨工作区返回：
+
+```json
+{"detail": "Contact activity not found"}
+```
+
+```bash
+curl -X GET "https://www.mekyro.com/api/v1/external/contact-logs/{activity_id}" \
+  -H "X-Api-Key: <your_api_key>"
+```
+
+---
+
+### 2.3 创建联系记录
+
+**所需权限**：`lead_contact_log:create`
 
 ```http
 POST /external/leads/{lead_id}/contact-logs
@@ -438,7 +625,46 @@ POST /external/leads/{lead_id}/contact-logs
 }
 ```
 
-批量创建：
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `activity_type` | string | 否 | `ai_outbound`、`human_outbound`、`customer_inbound` |
+| `direction` | string | 否 | `inbound` 或 `outbound`，可由 activity_type 推导 |
+| `channel` | string | 是 | `email`、`whatsapp`、`phone`、`meeting`、`other` |
+| `subject` | string | 否 | 主题，最长 500 |
+| `sender` | string | 否 | 发送方邮箱 |
+| `recipient` | string | 否 | 接收方邮箱 |
+| `content` | string | 是 | 内容，最长 10000 |
+
+**响应 — 成功（201）**
+
+```json
+{
+  "id": "2cf08872-d61d-4026-bfd8-433c163537ff",
+  "lead_id": "7fd6f590-6ce8-4b75-bc7d-3602a02afd01",
+  "merchant_name": "Example Buyer",
+  "activity_type": "customer_inbound",
+  "direction": "inbound",
+  "channel": "whatsapp",
+  "subject": "",
+  "sender": "",
+  "recipient": "",
+  "content": "Customer requested pricing and MOQ.",
+  "created_at": "2026-08-20T11:00:00Z"
+}
+```
+
+```bash
+curl -X POST "https://www.mekyro.com/api/v1/external/leads/{lead_id}/contact-logs" \
+  -H "X-Api-Key: <your_api_key>" \
+  -H "Content-Type: application/json" \
+  -d '{"activity_type":"customer_inbound","channel":"whatsapp","content":"Requested pricing."}'
+```
+
+---
+
+### 2.4 批量创建联系记录
+
+**所需权限**：`lead_contact_log:create`
 
 ```http
 POST /external/leads/{lead_id}/contact-logs/batch
@@ -462,29 +688,161 @@ POST /external/leads/{lead_id}/contact-logs/batch
 }
 ```
 
-### 6.4 更新和删除
+`items` 最少 1 条、最多 500 条。成功返回 `201` 和联系记录对象数组。
+
+**响应 — 成功（201）**
+
+```json
+[
+  {
+    "id": "2cf08872-d61d-4026-bfd8-433c163537ff",
+    "lead_id": "7fd6f590-6ce8-4b75-bc7d-3602a02afd01",
+    "merchant_name": "Example Buyer",
+    "activity_type": "human_outbound",
+    "direction": "outbound",
+    "channel": "email",
+    "subject": "Product introduction",
+    "sender": "sales@mekyro.com",
+    "recipient": "alex@example.com",
+    "content": "Introduced the current catalog.",
+    "created_at": "2026-08-20T11:00:00Z"
+  }
+]
+```
+
+```bash
+curl -X POST "https://www.mekyro.com/api/v1/external/leads/{lead_id}/contact-logs/batch" \
+  -H "X-Api-Key: <your_api_key>" \
+  -H "Content-Type: application/json" \
+  -d '{"items":[{"channel":"email","content":"Product introduction sent."}]}'
+```
+
+---
+
+### 2.5 更新联系记录
+
+**所需权限**：`lead_contact_log:update`
 
 ```http
 PATCH /external/contact-logs/{activity_id}
+```
+
+```json
+{
+  "activity_type": "customer_inbound",
+  "content": "Customer replied and requested a quote."
+}
+```
+
+可更新 `activity_type`、`channel`、`subject`、`sender`、`recipient`、`content`。更新 `activity_type` 时系统会重新计算 `direction`。
+
+**响应 — 成功（200）**
+
+```json
+{
+  "id": "2cf08872-d61d-4026-bfd8-433c163537ff",
+  "lead_id": "7fd6f590-6ce8-4b75-bc7d-3602a02afd01",
+  "merchant_name": "Example Buyer",
+  "activity_type": "customer_inbound",
+  "direction": "inbound",
+  "channel": "email",
+  "subject": "Re: Product introduction",
+  "sender": "alex@example.com",
+  "recipient": "sales@mekyro.com",
+  "content": "Customer replied and requested a quote.",
+  "created_at": "2026-08-20T11:00:00Z"
+}
+```
+
+```bash
+curl -X PATCH "https://www.mekyro.com/api/v1/external/contact-logs/{activity_id}" \
+  -H "X-Api-Key: <your_api_key>" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"Customer replied."}'
+```
+
+---
+
+### 2.6 删除联系记录
+
+**所需权限**：`lead_contact_log:delete`
+
+```http
 DELETE /external/contact-logs/{activity_id}
 ```
 
-更新可传 `activity_type`、`channel`、`subject`、`sender`、`recipient`、`content`。
+成功返回 `204`，无响应体。
 
-## 7. 分类接口
+```bash
+curl -X DELETE "https://www.mekyro.com/api/v1/external/contact-logs/{activity_id}" \
+  -H "X-Api-Key: <your_api_key>"
+```
 
-分类是树形结构。根分类的 `parent_id` 为 `null`，子分类的 `parent_id` 为父分类 UUID。
+---
 
-### 7.1 查询分类
+## 三、外部接口：商品分类 CRUD
+
+### 3.1 分类列表查询
+
+**所需权限**：`product:read`
 
 ```http
 GET /external/categories
+```
+
+成功直接返回分类对象数组：
+
+```json
+[
+  {
+    "id": "1e0748eb-e76d-41df-9874-b8b5b8204519",
+    "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+    "name": "Mobile Phones",
+    "parent_id": null,
+    "sort_order": 0,
+    "created_at": "2026-08-20T10:00:00Z",
+    "updated_at": "2026-08-20T10:00:00Z"
+  }
+]
+```
+
+```bash
+curl -X GET "https://www.mekyro.com/api/v1/external/categories" \
+  -H "X-Api-Key: <your_api_key>"
+```
+
+### 3.2 分类详情查询
+
+**所需权限**：`product:read`
+
+```http
 GET /external/categories/{category_id}
 ```
 
-分类列表直接返回数组，不使用分页包装。
+成功返回分类对象，完整响应示例如下：
 
-### 7.2 创建分类
+**响应 — 成功（200）**
+
+```json
+{
+  "id": "1e0748eb-e76d-41df-9874-b8b5b8204519",
+  "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+  "name": "Mobile Phones",
+  "parent_id": null,
+  "sort_order": 0,
+  "created_at": "2026-08-20T10:00:00Z",
+  "updated_at": "2026-08-20T10:00:00Z"
+}
+```
+
+```bash
+curl -X GET "https://www.mekyro.com/api/v1/external/categories/{category_id}" \
+  -H "X-Api-Key: <your_api_key>"
+```
+
+### 3.3 创建分类
+
+**所需权限**：`product:create`
 
 ```http
 POST /external/categories
@@ -498,48 +856,178 @@ POST /external/categories
 }
 ```
 
-### 7.3 更新和删除分类
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `name` | string | 是 | 分类名称，最长 100 |
+| `parent_id` | UUID/null | 否 | 父分类；根分类传 null |
+| `sort_order` | int | 否 | 排序值，默认 0 |
+
+**响应 — 成功（201）**
+
+```json
+{
+  "id": "1e0748eb-e76d-41df-9874-b8b5b8204519",
+  "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+  "name": "Mobile Phones",
+  "parent_id": null,
+  "sort_order": 0,
+  "created_at": "2026-08-20T10:00:00Z",
+  "updated_at": "2026-08-20T10:00:00Z"
+}
+```
+
+```bash
+curl -X POST "https://www.mekyro.com/api/v1/external/categories" \
+  -H "X-Api-Key: <your_api_key>" -H "Content-Type: application/json" \
+  -d '{"name":"Mobile Phones","parent_id":null,"sort_order":0}'
+```
+
+### 3.4 更新分类
+
+**所需权限**：`product:update`
 
 ```http
 PATCH /external/categories/{category_id}
+```
+
+```json
+{"name": "Smartphones", "sort_order": 10}
+```
+
+可更新 `name`、`parent_id`、`sort_order`。系统会校验工作区、分类层级、循环引用和最大深度。
+
+**响应 — 成功（200）**
+
+```json
+{
+  "id": "1e0748eb-e76d-41df-9874-b8b5b8204519",
+  "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+  "name": "Smartphones",
+  "parent_id": null,
+  "sort_order": 10,
+  "created_at": "2026-08-20T10:00:00Z",
+  "updated_at": "2026-08-20T10:05:00Z"
+}
+```
+
+```bash
+curl -X PATCH "https://www.mekyro.com/api/v1/external/categories/{category_id}" \
+  -H "X-Api-Key: <your_api_key>" -H "Content-Type: application/json" \
+  -d '{"name":"Smartphones","sort_order":10}'
+```
+
+### 3.5 删除分类
+
+**所需权限**：`product:delete`
+
+```http
 DELETE /external/categories/{category_id}
 ```
 
-删除分类会按现有分类树规则处理其子分类。分类仍被商品引用时，以接口实际返回的冲突信息为准。
+成功返回 `204`，无响应体。
 
-## 8. 商品接口
-
-### 8.1 查询商品列表
-
-```http
-GET /external/products?search=Phone&category_id={uuid}&status=active&limit=20&offset=0
+```bash
+curl -X DELETE "https://www.mekyro.com/api/v1/external/categories/{category_id}" \
+  -H "X-Api-Key: <your_api_key>"
 ```
 
-支持参数：
+---
 
-| 参数 | 说明 |
+## 四、外部接口：商品 CRUD
+
+### 4.1 商品列表查询
+
+**所需权限**：`product:read`
+
+```http
+GET /external/products?search=Phone&status=active&limit=20&offset=0
+```
+
+| 查询参数 | 说明 |
 |---|---|
-| `search` | 搜索商品名称和描述 |
-| `category_id` | 分类及其后代分类 |
+| `search` | 搜索商品名称、描述 |
+| `category_id` | 分类及后代分类 UUID |
 | `brand_id` | 品牌分类 UUID |
 | `brand_name` | 品牌分类名称 |
 | `status` | `active` 或 `inactive` |
 | `limit`、`offset` | 默认 20/0，limit 最大 100 |
-| `page`、`page_size` | 兼容旧分页参数 |
-| `include_skus` | 兼容旧参数；当前商品响应始终包含未删除 SKU |
+| `page`、`page_size` | 兼容旧分页方式 |
+| `include_skus` | 兼容旧参数；当前响应始终包含未删除 SKU |
 
-响应格式：
+**响应 — 成功（200）**
 
 ```json
 {
   "total": 1,
   "limit": 20,
   "offset": 0,
-  "items": []
+  "items": [
+    {
+      "id": "36b40379-600f-4438-b682-842cb2ed9582",
+      "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+      "category_id": "1e0748eb-e76d-41df-9874-b8b5b8204519",
+      "name": "Refurbished Smartphone",
+      "description": "Grade A refurbished device",
+      "specification_template": [],
+      "status": "active",
+      "variants": [],
+      "images": [],
+      "is_deleted": false,
+      "deleted_at": null,
+      "created_at": "2026-08-20T10:00:00Z",
+      "updated_at": "2026-08-20T10:00:00Z",
+      "sku_count": 0,
+      "total_stock": 0
+    }
+  ]
 }
 ```
 
-### 8.2 创建商品及 SKU
+```bash
+curl -X GET "https://www.mekyro.com/api/v1/external/products?status=active&limit=20&offset=0" \
+  -H "X-Api-Key: <your_api_key>"
+```
+
+### 4.2 商品详情查询
+
+**所需权限**：`product:read`
+
+```http
+GET /external/products/{product_id}
+```
+
+成功返回包含商品、未删除 SKU、阶梯价和图片的完整商品对象，示例如下：
+
+**响应 — 成功（200）**
+
+```json
+{
+  "id": "36b40379-600f-4438-b682-842cb2ed9582",
+  "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+  "category_id": "1e0748eb-e76d-41df-9874-b8b5b8204519",
+  "name": "Refurbished Smartphone",
+  "description": "Grade A refurbished device",
+  "specification_template": [],
+  "status": "active",
+  "variants": [],
+  "images": [],
+  "is_deleted": false,
+  "deleted_at": null,
+  "created_at": "2026-08-20T10:00:00Z",
+  "updated_at": "2026-08-20T10:00:00Z",
+  "sku_count": 0,
+  "total_stock": 0
+}
+```
+
+```bash
+curl -X GET "https://www.mekyro.com/api/v1/external/products/{product_id}" \
+  -H "X-Api-Key: <your_api_key>"
+```
+
+### 4.3 创建商品（可同时创建 SKU）
+
+**所需权限**：`product:create`
 
 ```http
 POST /external/products
@@ -574,83 +1062,340 @@ POST /external/products
 }
 ```
 
-约束：
+| 商品字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `category_id` | UUID/null | 否 | 分类 ID |
+| `name` | string | 是 | 商品名，最长 200 |
+| `description` | string | 否 | 描述，最长 10000 |
+| `specification_template` | array | 否 | 规格模板，最多 100 项 |
+| `status` | string | 否 | `active` 或 `inactive` |
+| `images` | array | 否 | 商品图片 URL，最多 5 张 |
+| `detail_image` | string | 否 | 商品详情图片 URL |
+| `variants` | array | 否 | SKU 数组，最多 500 条 |
 
-- 一个商品最多传 5 张 `images`；
-- 商品内 SKU 编码不能重复；
-- 同一工作区内 `sku_code` 唯一；
-- 币种必须是三位大写代码，例如 `USD`；
-- 阶梯价数量必须唯一且升序；
-- URL 必须是 `http(s)://...` 或 `/media/...`。
+| SKU 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `sku_code` | string | 是 | 工作区内唯一，最长 100 |
+| `specifications` | object | 否 | 规格键值 |
+| `minimum_order_quantity` | int | 否 | 最小起订量，默认 1 |
+| `currency` | string | 否 | 三位大写币种，默认 USD |
+| `stock_quantity` | int | 否 | 初始库存，不得小于 0 |
+| `status` | string | 否 | active/inactive |
+| `price_tiers` | array | 否 | 阶梯价，数量必须唯一且升序 |
+| `image` | string | 否 | SKU 图片 URL |
 
-### 8.3 查询、更新和删除商品
+**响应 — 成功（201）**
+
+```json
+{
+  "id": "36b40379-600f-4438-b682-842cb2ed9582",
+  "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+  "category_id": "1e0748eb-e76d-41df-9874-b8b5b8204519",
+  "name": "Refurbished Smartphone",
+  "description": "Grade A refurbished device",
+  "specification_template": [{"name":"Storage","options":["128GB","256GB"]}],
+  "status": "active",
+  "variants": [{
+    "id": "3ecba047-6486-4c60-8566-a40e15d313c5",
+    "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+    "product_id": "36b40379-600f-4438-b682-842cb2ed9582",
+    "sku_code": "PHONE-A-128",
+    "specifications": {"Grade":"A","Storage":"128GB"},
+    "minimum_order_quantity": 1,
+    "currency": "USD",
+    "stock_quantity": 10,
+    "status": "active",
+    "price_tiers": [{"minimum_quantity":1,"unit_price":"299.00"}],
+    "images": [],
+    "is_deleted": false,
+    "deleted_at": null,
+    "created_at": "2026-08-20T10:00:00Z",
+    "updated_at": "2026-08-20T10:00:00Z"
+  }],
+  "images": [],
+  "is_deleted": false,
+  "deleted_at": null,
+  "created_at": "2026-08-20T10:00:00Z",
+  "updated_at": "2026-08-20T10:00:00Z",
+  "sku_count": 1,
+  "total_stock": 10
+}
+```
+
+```bash
+curl -X POST "https://www.mekyro.com/api/v1/external/products" \
+  -H "X-Api-Key: <your_api_key>" -H "Content-Type: application/json" \
+  -d '{"name":"Example Product","variants":[{"sku_code":"EXAMPLE-SKU-001"}]}'
+```
+
+### 4.4 更新商品
+
+**所需权限**：`product:update`
 
 ```http
-GET /external/products/{product_id}
 PATCH /external/products/{product_id}
+```
+
+```json
+{"description": "Updated by external system", "status": "active"}
+```
+
+支持 `category_id`、`name`、`description`、`specification_template`、`status`。
+
+**响应 — 成功（200）**
+
+**响应 — 成功（200）**
+
+```json
+{
+  "id": "36b40379-600f-4438-b682-842cb2ed9582",
+  "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+  "category_id": "1e0748eb-e76d-41df-9874-b8b5b8204519",
+  "name": "Refurbished Smartphone",
+  "description": "Updated by external system",
+  "specification_template": [],
+  "status": "active",
+  "variants": [],
+  "images": [],
+  "is_deleted": false,
+  "deleted_at": null,
+  "created_at": "2026-08-20T10:00:00Z",
+  "updated_at": "2026-08-20T10:05:00Z",
+  "sku_count": 0,
+  "total_stock": 0
+}
+```
+
+```bash
+curl -X PATCH "https://www.mekyro.com/api/v1/external/products/{product_id}" \
+  -H "X-Api-Key: <your_api_key>" -H "Content-Type: application/json" \
+  -d '{"description":"Updated by external system","status":"active"}'
+```
+
+### 4.5 删除商品
+
+**所需权限**：`product:delete`
+
+```http
 DELETE /external/products/{product_id}
 ```
 
-商品更新支持：`category_id`、`name`、`description`、`specification_template`、`status`。
+执行软删除，同时软删除其 SKU。成功返回 `204`。外部 API 不开放恢复和永久删除接口。
 
-外部接口删除商品执行软删除，同时软删除其 SKU；返回 `204`。外部 API 当前未开放恢复和永久删除接口。
-
-## 9. SKU 与阶梯价接口
-
-### 9.1 创建 SKU
-
-```http
-POST /external/products/{product_id}/variants
+```bash
+curl -X DELETE "https://www.mekyro.com/api/v1/external/products/{product_id}" \
+  -H "X-Api-Key: <your_api_key>"
 ```
 
-请求字段与商品创建中的 `variants[]` 单项相同。
+---
 
-### 9.2 查询 SKU
+## 五、外部接口：SKU 与阶梯价
+
+### 5.1 SKU 列表查询
+
+**所需权限**：`product:read`
 
 ```http
 GET /external/variants?search=PHONE&status=active&stock=in_stock&limit=50&offset=0
-GET /external/variants/{variant_id}
 ```
 
-列表支持：
+支持：`search`、`status`、`stock`、`category_id`、`brand_id`、`brand_name`、`product_id`、`spec_key`、`spec_value`、`ordering`、`limit/offset`、`page/page_size`。
 
-- `search`
-- `status=active|inactive`
-- `stock=in_stock|out_of_stock`
-- `category_id`
-- `brand_id`
-- `brand_name`
-- `product_id`
-- `spec_key`、`spec_value`
-- `ordering=created_at|-created_at|sku_code|-sku_code|stock_quantity|-stock_quantity`
-- `limit/offset` 或兼容参数 `page/page_size`
-
-多个规格筛选使用逗号分隔，键和值数量必须一致：
+多规格筛选：
 
 ```http
 GET /external/variants?spec_key=Grade,Storage&spec_value=A,128GB
 ```
 
-注意：SKU 列表当前直接返回数组，不返回 `total/limit/offset` 包装。
+成功直接返回 SKU 对象数组，不包含分页包装。
 
-### 9.3 更新和删除 SKU
+**响应 — 成功（200）**
+
+```json
+[
+  {
+    "id": "3ecba047-6486-4c60-8566-a40e15d313c5",
+    "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+    "product_id": "36b40379-600f-4438-b682-842cb2ed9582",
+    "sku_code": "PHONE-A-128",
+    "specifications": {"Grade": "A", "Storage": "128GB"},
+    "minimum_order_quantity": 1,
+    "currency": "USD",
+    "stock_quantity": 10,
+    "status": "active",
+    "price_tiers": [{"minimum_quantity": 1, "unit_price": "299.00"}],
+    "images": [],
+    "is_deleted": false,
+    "deleted_at": null,
+    "created_at": "2026-08-20T10:00:00Z",
+    "updated_at": "2026-08-20T10:00:00Z"
+  }
+]
+```
+
+**cURL**
+
+```bash
+curl -X GET "https://www.mekyro.com/api/v1/external/variants?search=PHONE&status=active&stock=in_stock&limit=50&offset=0" \
+  -H "X-Api-Key: <your_api_key>"
+```
+
+### 5.2 SKU 详情查询
+
+**所需权限**：`product:read`
+
+```http
+GET /external/variants/{variant_id}
+```
+
+成功返回包含 SKU、阶梯价和图片信息的完整对象，示例如下：
+
+**响应 — 成功（200）**
+
+```json
+{
+  "id": "3ecba047-6486-4c60-8566-a40e15d313c5",
+  "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+  "product_id": "36b40379-600f-4438-b682-842cb2ed9582",
+  "sku_code": "PHONE-A-128",
+  "specifications": {"Grade": "A", "Storage": "128GB"},
+  "minimum_order_quantity": 1,
+  "currency": "USD",
+  "stock_quantity": 10,
+  "status": "active",
+  "price_tiers": [{"minimum_quantity": 1, "unit_price": "299.00"}],
+  "images": [],
+  "is_deleted": false,
+  "deleted_at": null,
+  "created_at": "2026-08-20T10:00:00Z",
+  "updated_at": "2026-08-20T10:00:00Z"
+}
+```
+
+```bash
+curl -X GET "https://www.mekyro.com/api/v1/external/variants/{variant_id}" \
+  -H "X-Api-Key: <your_api_key>"
+```
+
+### 5.3 追加 SKU
+
+**所需权限**：`product:create`
+
+```http
+POST /external/products/{product_id}/variants
+```
+
+```json
+{
+  "sku_code": "PHONE-A-256",
+  "specifications": {"Grade": "A", "Storage": "256GB"},
+  "minimum_order_quantity": 2,
+  "currency": "USD",
+  "stock_quantity": 20,
+  "status": "active",
+  "price_tiers": [
+    {"minimum_quantity": 2, "unit_price": "329.00"}
+  ]
+}
+```
+
+**响应 — 成功（201）**
+
+```json
+{
+  "id": "3ecba047-6486-4c60-8566-a40e15d313c5",
+  "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+  "product_id": "36b40379-600f-4438-b682-842cb2ed9582",
+  "sku_code": "PHONE-A-256",
+  "specifications": {"Grade":"A","Storage":"256GB"},
+  "minimum_order_quantity": 2,
+  "currency": "USD",
+  "stock_quantity": 20,
+  "status": "active",
+  "price_tiers": [{"minimum_quantity":2,"unit_price":"329.00"}],
+  "images": [],
+  "is_deleted": false,
+  "deleted_at": null,
+  "created_at": "2026-08-20T10:00:00Z",
+  "updated_at": "2026-08-20T10:00:00Z"
+}
+```
+
+```bash
+curl -X POST "https://www.mekyro.com/api/v1/external/products/{product_id}/variants" \
+  -H "X-Api-Key: <your_api_key>" -H "Content-Type: application/json" \
+  -d '{"sku_code":"PHONE-A-256","stock_quantity":20,"price_tiers":[{"minimum_quantity":2,"unit_price":"329.00"}]}'
+```
+
+### 5.4 更新 SKU
+
+**所需权限**：`product:update`
 
 ```http
 PATCH /external/variants/{variant_id}
+```
+
+```json
+{
+  "minimum_order_quantity": 5,
+  "specifications": {"Grade": "A", "Storage": "256GB", "Color": "Black"}
+}
+```
+
+可更新 `sku_code`、`specifications`、`minimum_order_quantity`、`currency`、`stock_quantity`、`status`、`price`、`product_name`、`product_category_id`。
+
+**响应 — 成功（200）**
+
+**响应 — 成功（200）**
+
+```json
+{
+  "id": "3ecba047-6486-4c60-8566-a40e15d313c5",
+  "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+  "product_id": "36b40379-600f-4438-b682-842cb2ed9582",
+  "sku_code": "PHONE-A-128",
+  "specifications": {"Grade":"A","Storage":"256GB"},
+  "minimum_order_quantity": 5,
+  "currency": "USD",
+  "stock_quantity": 10,
+  "status": "active",
+  "price_tiers": [{"minimum_quantity":1,"unit_price":"299.00"}],
+  "images": [],
+  "is_deleted": false,
+  "deleted_at": null,
+  "created_at": "2026-08-20T10:00:00Z",
+  "updated_at": "2026-08-20T10:05:00Z"
+}
+```
+
+```bash
+curl -X PATCH "https://www.mekyro.com/api/v1/external/variants/{variant_id}" \
+  -H "X-Api-Key: <your_api_key>" -H "Content-Type: application/json" \
+  -d '{"minimum_order_quantity":5,"status":"active"}'
+```
+
+### 5.5 删除 SKU
+
+**所需权限**：`product:delete`
+
+```http
 DELETE /external/variants/{variant_id}
 ```
 
-更新支持：`sku_code`、`specifications`、`minimum_order_quantity`、`currency`、`stock_quantity`、`status`、`price`、`product_name`、`product_category_id`。
+执行软删除，成功返回 `204`。
 
-删除 SKU 执行软删除，返回 `204`。
+```bash
+curl -X DELETE "https://www.mekyro.com/api/v1/external/variants/{variant_id}" \
+  -H "X-Api-Key: <your_api_key>"
+```
 
-### 9.4 覆盖阶梯价
+### 5.6 覆盖式更新阶梯价
+
+**所需权限**：`product:update`
 
 ```http
 PUT /external/variants/{variant_id}/price-tiers
 ```
-
-请求体是数组，覆盖该 SKU 的全部阶梯价：
 
 ```json
 [
@@ -659,30 +1404,75 @@ PUT /external/variants/{variant_id}/price-tiers
 ]
 ```
 
-### 9.5 批量更新 SKU
+请求体为数组，会覆盖该 SKU 原有全部阶梯价。成功返回新的阶梯价数组。
+
+**响应 — 成功（200）**
+
+```json
+[
+  {"minimum_quantity": 1, "unit_price": "299.00"},
+  {"minimum_quantity": 10, "unit_price": "279.00"}
+]
+```
+
+```bash
+curl -X PUT "https://www.mekyro.com/api/v1/external/variants/{variant_id}/price-tiers" \
+  -H "X-Api-Key: <your_api_key>" -H "Content-Type: application/json" \
+  -d '[{"minimum_quantity":1,"unit_price":"299.00"}]'
+```
+
+### 5.7 批量更新 SKU
+
+**所需权限**：`product:update`
 
 ```http
 PATCH /external/batch/variants
 ```
 
-请求体是数组：
+```json
+[
+  {"id": "uuid-1", "minimum_order_quantity": 3},
+  {"id": "uuid-2", "status": "inactive"}
+]
+```
+
+请求体为数组，最少 1 条、最多 500 条。成功返回更新后的 SKU 数组。
+
+**响应 — 成功（200）**
+
+**响应 — 成功（200）**
 
 ```json
 [
   {
     "id": "3ecba047-6486-4c60-8566-a40e15d313c5",
-    "minimum_order_quantity": 5
-  },
-  {
-    "id": "255c99d9-2fcf-4a33-b3aa-879abbb80aa9",
-    "status": "inactive"
+    "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+    "product_id": "36b40379-600f-4438-b682-842cb2ed9582",
+    "sku_code": "PHONE-A-128",
+    "specifications": {"Grade":"A","Storage":"128GB"},
+    "minimum_order_quantity": 1,
+    "currency": "USD",
+    "stock_quantity": 10,
+    "status": "active",
+    "price_tiers": [{"minimum_quantity":1,"unit_price":"299.00"}],
+    "images": [],
+    "is_deleted": false,
+    "deleted_at": null,
+    "created_at": "2026-08-20T10:00:00Z",
+    "updated_at": "2026-08-20T10:00:00Z"
   }
 ]
 ```
 
-最多 500 条。
+```bash
+curl -X PATCH "https://www.mekyro.com/api/v1/external/batch/variants" \
+  -H "X-Api-Key: <your_api_key>" -H "Content-Type: application/json" \
+  -d '[{"id":"<variant_uuid>","status":"inactive"}]'
+```
 
-### 9.6 批量覆盖阶梯价
+### 5.8 批量覆盖阶梯价
+
+**所需权限**：`product:update`
 
 ```http
 PUT /external/batch/price-tiers
@@ -691,33 +1481,52 @@ PUT /external/batch/price-tiers
 ```json
 [
   {
-    "variant_id": "3ecba047-6486-4c60-8566-a40e15d313c5",
-    "price_tiers": [
-      {"minimum_quantity": 5, "unit_price": "269.00"}
-    ]
+    "variant_id": "uuid-1",
+    "price_tiers": [{"minimum_quantity": 3, "unit_price": "269.00"}]
+  },
+  {
+    "variant_id": "uuid-2",
+    "price_tiers": [{"minimum_quantity": 5, "unit_price": "249.00"}]
   }
 ]
 ```
 
-最多 500 个 SKU。
+成功返回：
 
-## 10. 库存接口
-
-### 10.1 查询库存流水
-
-```http
-GET /external/inventory-movements?variant_id={uuid}&type=inbound&limit=50&offset=0
+```json
+[
+  {"variant_id": "uuid-1", "price_tiers": [{"minimum_quantity": 3, "unit_price": "269.00"}]}
+]
 ```
 
-支持参数：
+```bash
+curl -X PUT "https://www.mekyro.com/api/v1/external/batch/price-tiers" \
+  -H "X-Api-Key: <your_api_key>" -H "Content-Type: application/json" \
+  -d '[{"variant_id":"<variant_uuid>","price_tiers":[{"minimum_quantity":1,"unit_price":"99.00"}]}]'
+```
 
-- `variant_id`
-- `type=inbound|outbound|adjustment`
-- `search`
-- `ordering=id|-id|created_at|-created_at|quantity_delta|-quantity_delta|balance_after|-balance_after|sku_code|-sku_code|product_name|-product_name`
-- `limit/offset` 或兼容参数 `page/page_size`
+---
 
-响应：
+## 六、外部接口：库存
+
+### 6.1 库存流水列表查询
+
+**所需权限**：`product_inventory:read`
+
+```http
+GET /external/inventory-movements?variant_id={variant_id}&type=inbound&limit=50&offset=0
+```
+
+| 查询参数 | 说明 |
+|---|---|
+| `variant_id` | SKU UUID |
+| `type` | `inbound`、`outbound`、`adjustment` |
+| `search` | 搜索 SKU、商品名、原因和引用号 |
+| `ordering` | created_at、quantity_delta、balance_after、sku_code、product_name 等，前加 `-` 为倒序 |
+| `limit`、`offset` | 默认 50/0，limit 最大 100 |
+| `page`、`page_size` | 兼容旧分页 |
+
+**响应 — 成功（200）**
 
 ```json
 {
@@ -734,19 +1543,26 @@ GET /external/inventory-movements?variant_id={uuid}&type=inbound&limit=50&offset
       "quantity_delta": 10,
       "balance_after": 20,
       "reason": "Purchase receipt",
-      "reference": "PO-20260819-001",
+      "reference": "PO-20260820-001",
       "created_by": "api-key-name",
-      "created_at": "2026-08-19T10:00:00Z"
+      "created_at": "2026-08-20T10:00:00Z"
     }
   ]
 }
 ```
 
-### 10.2 单条出入库
+```bash
+curl -X GET "https://www.mekyro.com/api/v1/external/inventory-movements?variant_id={variant_id}" \
+  -H "X-Api-Key: <your_api_key>"
+```
+
+### 6.2 创建出入库记录
+
+**所需权限**：`product_inventory:create`
 
 ```http
 POST /external/inventory-adjustments
-Idempotency-Key: inventory-order-20260819-0001
+Idempotency-Key: inventory-order-20260820-0001
 ```
 
 ```json
@@ -755,36 +1571,65 @@ Idempotency-Key: inventory-order-20260819-0001
   "movement_type": "inbound",
   "quantity_delta": 10,
   "reason": "Purchase receipt",
-  "reference": "PO-20260819-001"
+  "reference": "PO-20260820-001"
 }
 ```
 
-方向规则：
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `variant_id` | UUID | 是 | SKU ID |
+| `movement_type` | string | 否 | 默认 adjustment |
+| `quantity_delta` | int | 是 | 变动数量 |
+| `reason` | string | 是 | 原因，最长 500 |
+| `reference` | string | 否 | 外部单据号，最长 120 |
 
-- `inbound` 的 `quantity_delta` 必须大于 0；
-- `outbound` 的 `quantity_delta` 必须小于 0；
-- `adjustment` 可正可负；
-- 调整后库存不能小于 0。
+方向规则：`inbound` 必须为正数，`outbound` 必须为负数，`adjustment` 可正可负，调整后库存不能小于 0。
 
-### 10.3 批量出入库
+**响应 — 成功（201）**
+
+```json
+{
+  "movement_id": "8b36838d-e132-4233-8fb5-3d5816251f98",
+  "variant_id": "3ecba047-6486-4c60-8566-a40e15d313c5",
+  "sku_code": "PHONE-A-128",
+  "movement_type": "inbound",
+  "quantity_delta": 10,
+  "balance_after": 20,
+  "reason": "Purchase receipt",
+  "reference": "PO-20260820-001",
+  "created_by": "api-key-name"
+}
+```
+
+```bash
+curl -X POST "https://www.mekyro.com/api/v1/external/inventory-adjustments" \
+  -H "X-Api-Key: <your_api_key>" \
+  -H "Idempotency-Key: inventory-order-20260820-0001" \
+  -H "Content-Type: application/json" \
+  -d '{"variant_id":"<variant_uuid>","movement_type":"inbound","quantity_delta":10,"reason":"Purchase receipt"}'
+```
+
+### 6.3 批量创建出入库记录
+
+**所需权限**：`product_inventory:create`
 
 ```http
 POST /external/batch/inventory-adjustments
-Idempotency-Key: inventory-batch-20260819-0001
+Idempotency-Key: inventory-batch-20260820-0001
 ```
 
-请求体是数组，不是 `{ "items": [...] }`：
+> 请求体直接是数组，不是 `{ "items": [...] }`。
 
 ```json
 [
   {
-    "variant_id": "3ecba047-6486-4c60-8566-a40e15d313c5",
+    "variant_id": "uuid-1",
     "movement_type": "inbound",
     "quantity_delta": 10,
     "reason": "Purchase receipt"
   },
   {
-    "variant_id": "255c99d9-2fcf-4a33-b3aa-879abbb80aa9",
+    "variant_id": "uuid-2",
     "movement_type": "outbound",
     "quantity_delta": -2,
     "reason": "Order allocation"
@@ -792,14 +1637,14 @@ Idempotency-Key: inventory-batch-20260819-0001
 ]
 ```
 
-最多 500 条，成功返回：
+最少 1 条、最多 500 条。成功返回 `201`：
 
 ```json
 {
   "items": [
     {
-      "movement_id": "8b36838d-e132-4233-8fb5-3d5816251f98",
-      "variant_id": "3ecba047-6486-4c60-8566-a40e15d313c5",
+      "movement_id": "movement-uuid",
+      "variant_id": "uuid-1",
       "sku_code": "PHONE-A-128",
       "movement_type": "inbound",
       "quantity_delta": 10,
@@ -812,93 +1657,203 @@ Idempotency-Key: inventory-batch-20260819-0001
 }
 ```
 
-## 11. cURL 快速示例
-
-### 11.1 创建线索
+**cURL**
 
 ```bash
-curl -X POST "https://www.mekyro.com/api/v1/external/leads" \
+curl -X POST "https://www.mekyro.com/api/v1/external/batch/inventory-adjustments" \
   -H "X-Api-Key: <your_api_key>" \
+  -H "Idempotency-Key: inventory-batch-20260820-0001" \
   -H "Content-Type: application/json" \
-  -d '{
-    "source": "other",
-    "platform_name": "LinkedIn",
-    "external_ref": "LINKEDIN-10001",
-    "merchant_name": "Example Buyer",
-    "company_name": "Example Buyer Ltd",
-    "country": "US"
-  }'
+  -d '[{"variant_id":"uuid-1","movement_type":"inbound","quantity_delta":10,"reason":"Purchase receipt"},{"variant_id":"uuid-2","movement_type":"outbound","quantity_delta":-2,"reason":"Order allocation"}]'
 ```
 
-### 11.2 创建商品
+---
+
+## 七、外部接口：工作区查询
+
+### 7.1 查询工作区提示词和每日线索量
+
+**所需权限**：`workspace:read`
+
+```http
+GET /external/workspace/prompt
+```
+
+**响应 — 成功（200）**
+
+```json
+{
+  "workspace_id": "b108d4ab-f7a7-491f-bff6-285e31feb5c9",
+  "workspace_name": "上海芒可忆",
+  "prompt": "目标客户和获客要求",
+  "daily_lead_limit": 50
+}
+```
 
 ```bash
-curl -X POST "https://www.mekyro.com/api/v1/external/products" \
-  -H "X-Api-Key: <your_api_key>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Example Product",
-    "variants": [
-      {
-        "sku_code": "EXAMPLE-SKU-001",
-        "stock_quantity": 0,
-        "price_tiers": [
-          {"minimum_quantity": 1, "unit_price": "99.00"}
-        ]
-      }
-    ]
-  }'
+curl -X GET "https://www.mekyro.com/api/v1/external/workspace/prompt" \
+  -H "X-Api-Key: <your_api_key>"
 ```
 
-### 11.3 执行入库
+---
 
-```bash
-curl -X POST "https://www.mekyro.com/api/v1/external/inventory-adjustments" \
-  -H "X-Api-Key: <your_api_key>" \
-  -H "Idempotency-Key: receipt-20260819-001" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "variant_id": "3ecba047-6486-4c60-8566-a40e15d313c5",
-    "movement_type": "inbound",
-    "quantity_delta": 10,
-    "reason": "Purchase receipt",
-    "reference": "PO-20260819-001"
-  }'
-```
+## 八、权限编码说明
 
-## 12. 从旧版 Django 接口迁移
-
-旧文档中的接口路径和响应格式不能直接用于当前 FastAPI 后端。
-
-| 旧接口示例 | 当前接口 |
+| 权限编码 | 可访问的操作 |
 |---|---|
-| `/api/external/leads/` | `/api/v1/external/leads` |
-| `/api/external/leads/create/` | `POST /api/v1/external/leads` |
-| `/api/external/leads/batch-create/` | `POST /api/v1/external/leads/batch` |
-| `/api/external/leads/{id}/update/` | `PATCH /api/v1/external/leads/{lead_id}` |
-| `/api/external/leads/{id}/delete/` | `DELETE /api/v1/external/leads/{lead_id}` |
-| `/api/external/leads/{id}/contact-logs/create/` | `POST /api/v1/external/leads/{lead_id}/contact-logs` |
+| `workspace:read` | 查询工作区提示词和每日线索量 |
+| `lead:read` | 线索列表、详情 |
+| `lead:create` | 创建、批量创建线索 |
+| `lead:update` | 更新线索 |
+| `lead:delete` | 删除线索 |
+| `lead_contact_log:read` | 联系记录列表、详情 |
+| `lead_contact_log:create` | 创建、批量创建联系记录 |
+| `lead_contact_log:update` | 更新联系记录 |
+| `lead_contact_log:delete` | 删除联系记录 |
+| `product:read` | 查询分类、商品、SKU |
+| `product:create` | 创建分类、商品、SKU |
+| `product:update` | 更新分类、商品、SKU、阶梯价 |
+| `product:delete` | 删除分类、商品、SKU |
+| `product_inventory:read` | 查询库存流水 |
+| `product_inventory:create` | 单条、批量出入库 |
+
+权限不足返回：
+
+```json
+{
+  "detail": "API key permission required: lead:create"
+}
+```
+
+---
+
+## 九、枚举值速查
+
+### 线索来源 source
+
+```text
+manual, website, amazon, trade_show, other
+```
+
+### 线索阶段 stage
+
+```text
+new, contacting, replied, qualified, quoting, ordered, lost
+```
+
+允许的阶段流转：
+
+```text
+new -> contacting | lost
+contacting -> replied | qualified | lost
+replied -> qualified | lost
+qualified -> quoting | lost
+quoting -> ordered | lost
+ordered -> 终态
+lost -> 终态
+```
+
+### 联系记录类型 activity_type
+
+```text
+ai_outbound, human_outbound, customer_inbound
+```
+
+### 联系方向 direction
+
+```text
+inbound, outbound
+```
+
+### 联系渠道 channel
+
+```text
+email, whatsapp, phone, meeting, other
+```
+
+### 商品和 SKU 状态
+
+```text
+active, inactive
+```
+
+### 库存类型 movement_type
+
+```text
+inbound, outbound, adjustment
+```
+
+---
+
+## 十、旧版接口迁移对照
+
+| 旧版 Django 接口 | 当前 FastAPI 接口 |
+|---|---|
+| `GET /api/external/leads/` | `GET /api/v1/external/leads` |
+| `POST /api/external/leads/create/` | `POST /api/v1/external/leads` |
+| `POST /api/external/leads/batch-create/` | `POST /api/v1/external/leads/batch` |
+| `PATCH /api/external/leads/{id}/update/` | `PATCH /api/v1/external/leads/{lead_id}` |
+| `DELETE /api/external/leads/{id}/delete/` | `DELETE /api/v1/external/leads/{lead_id}` |
+| `POST /api/external/leads/{id}/contact-logs/create/` | `POST /api/v1/external/leads/{lead_id}/contact-logs` |
+| `POST /api/external/leads/{id}/contact-logs/batch-create/` | `POST /api/v1/external/leads/{lead_id}/contact-logs/batch` |
 | `/api/external/products/{id}/skus/` | `/api/v1/external/products/{product_id}/variants` |
 | `/api/external/skus/{id}/inventory-logs/` | `/api/v1/external/inventory-movements?variant_id={variant_id}` |
 
-关键数据差异：
+字段变化：
 
-1. `id` 和关联 ID 均为字符串 UUID，不再是整数自增 ID。
-2. 线索的 `platform` 字段改为 `source` 和 `platform_name`。
-3. `merchant_id` 改为 `external_ref`。
-4. `ws_lead_id` 改为 `lead_id`。
-5. `type` 在联系记录响应中改为 `activity_type`。
-6. `email_title`、`email_sender` 分别改为 `subject`、`sender`，并新增 `recipient`。
-7. 商品明细中的 `skus` 改为 `variants`。
-8. 库存字段使用 `movement_type`、`quantity_delta`、`reference`。
-9. 成功响应不再包装为 `code/message/data`。
-10. 删除成功统一返回 `204`，没有 JSON 响应体。
+| 旧字段 | 当前字段 |
+|---|---|
+| 整数 `id` | UUID 字符串 `id` |
+| `platform` | `source` + `platform_name` |
+| `merchant_id` | `external_ref` |
+| `ws_lead_id` | `lead_id` |
+| 联系记录 `type` | `activity_type` |
+| `email_title` | `subject` |
+| `email_sender` | `sender` |
+| `skus` | `variants` |
+| 库存 `type` | `movement_type` |
+| 库存 `quantity` | `quantity_delta` |
+| `reference_id` | `reference` |
 
-## 13. 接入建议
+### 通用错误示例
 
-1. 为每个外部系统单独创建 API Key，不要在多个系统间共用。
-2. 只授予实际需要的权限，并在停用集成时立即停用密钥。
-3. 线索同步应稳定提供 `source + external_ref`，用于防止重复写入。
-4. 库存写操作始终提供稳定的 `Idempotency-Key`，重试时复用同一个值。
-5. 调用方应正确处理 `401`、`403`、`409` 和 `422`，不要对所有失败无限重试。
-6. 外部服务上线前应使用专用测试工作区完成联调，避免污染正式工作区数据。
+**缺少 API Key（401）**
+
+```json
+{"detail": "Missing API key"}
+```
+
+**API Key 无效（401）**
+
+```json
+{"detail": "Invalid API key"}
+```
+
+**API Key 已停用（401）**
+
+```json
+{"detail": "API key is disabled"}
+```
+
+**参数校验失败（422）**
+
+```json
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": ["body", "merchant_name"],
+      "msg": "Field required"
+    }
+  ]
+}
+```
+
+### 接入建议
+
+1. 每个外部服务单独创建 API Key，不要共用。
+2. 只授予实际需要的最小权限。
+3. 线索同步稳定提供 `source + external_ref`，避免重复写入。
+4. 库存写入始终提供稳定的 `Idempotency-Key`，重试时复用同一个值。
+5. 正确处理 401、403、409、422，不要对业务错误无限重试。
+6. 正式接入前先在测试工作区联调。
