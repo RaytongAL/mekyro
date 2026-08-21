@@ -907,6 +907,7 @@
     "leadsColMerchantInfo": "Merchant Info",
     "leadsColMerchantId": "Merchant ID",
     "leadsColPlatform": "Platform",
+    "leadsColPlatformName": "Platform Name",
     "leadsColWorkspace": "Workspace",
     "leadsAllWorkspaces": "All Workspaces",
     "leadsAllCountries": "All Countries",

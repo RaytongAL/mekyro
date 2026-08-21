@@ -617,6 +617,7 @@ function lead(item: Record<string, unknown>): Record<string, unknown> {
   return {
     ...item,
     platform: item.source ?? item.platform,
+    platform_name: item.platform_name ?? "",
     merchant_id: item.external_ref ?? item.merchant_id,
   };
 }

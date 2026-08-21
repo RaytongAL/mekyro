@@ -78,6 +78,7 @@ function WhatsAppIcon({ className }: { className?: string }) {
 
 type LeadItem = {
   id: string;
+  platform_name: string;
   merchant_name: string;
   company_name: string;
   contact_person: string;
@@ -674,6 +675,10 @@ export function SupplierLeadsPage() {
                 <div className={opsStyles.detailInfoItem}>
                   <span>{t("supplier.colCreated")}</span>
                   <strong>{formatDatetime(detailLead?.created_at ?? null)}</strong>
+                </div>
+                <div className={opsStyles.detailInfoItem}>
+                  <span>{t("ops.leadsColPlatformName")}</span>
+                  <strong>{detailLead?.platform_name || "—"}</strong>
                 </div>
               </div>
             </TabsContent>

@@ -907,6 +907,7 @@
     "leadsColMerchantInfo": "商家信息",
     "leadsColMerchantId": "商家ID",
     "leadsColPlatform": "来源平台",
+    "leadsColPlatformName": "平台名称",
     "leadsColWorkspace": "工作区",
     "leadsAllWorkspaces": "全部工作区",
     "leadsAllCountries": "全部国家",
