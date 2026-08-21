@@ -7,7 +7,6 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Date,
-    DateTime,
     ForeignKey,
     Index,
     Integer,
@@ -17,6 +16,8 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+from app.core.types import UTCDateTime
 
 
 def new_id() -> str:
@@ -53,9 +54,9 @@ class Base(DeclarativeBase):
 
 
 class TimestampMixin:
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+        UTCDateTime(), default=utcnow, onupdate=utcnow
     )
 
 
@@ -134,7 +135,7 @@ class ApiKey(Base, TimestampMixin):
     key_prefix: Mapped[str] = mapped_column(String(12))
     permissions: Mapped[list] = mapped_column(JSON, default=list)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
-    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
     user: Mapped[User] = relationship()
     workspace: Mapped[Workspace] = relationship()
@@ -155,9 +156,9 @@ class AuthChallenge(Base):
     ip_address: Mapped[str] = mapped_column(String(64), default="")
     captcha_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    used_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class ShopifyConfig(Base, TimestampMixin):
@@ -205,10 +206,10 @@ class OutboxMessage(Base):
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
-    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    available_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    processed_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     last_error: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class WorkspacePromptVersion(Base):
@@ -223,7 +224,7 @@ class WorkspacePromptVersion(Base):
     prompt: Mapped[str] = mapped_column(Text)
     daily_lead_limit: Mapped[int] = mapped_column(Integer, default=0)
     created_by: Mapped[str] = mapped_column(String(36))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class WorkspaceInvitation(Base, TimestampMixin):
@@ -242,12 +243,12 @@ class WorkspaceInvitation(Base, TimestampMixin):
     token_prefix: Mapped[str] = mapped_column(String(20))
     token_hash: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(30), default="pending")
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
     invited_by: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
     accepted_by: Mapped[str | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
 
 class Lead(Base, TimestampMixin):
@@ -298,7 +299,7 @@ class ContactActivity(Base):
     sender: Mapped[str] = mapped_column(String(254), default="")
     recipient: Mapped[str] = mapped_column(String(254), default="")
     content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
     lead: Mapped[Lead] = relationship(back_populates="activities")
 
@@ -334,7 +335,7 @@ class Product(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(30), default="active")
     external_ids: Mapped[dict] = mapped_column(JSON, default=dict)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
     variants: Mapped[list["ProductVariant"]] = relationship(back_populates="product")
     images: Mapped[list["ProductImage"]] = relationship(back_populates="product")
@@ -359,7 +360,7 @@ class ProductVariant(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(30), default="active")
     external_ids: Mapped[dict] = mapped_column(JSON, default=dict)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
     product: Mapped[Product] = relationship(back_populates="variants")
     price_tiers: Mapped[list["PriceTier"]] = relationship(back_populates="variant")
@@ -401,7 +402,7 @@ class ProductImage(Base):
     )
     image_type: Mapped[str] = mapped_column(String(30))
     file_key: Mapped[str] = mapped_column(String(2000))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
     product: Mapped[Product | None] = relationship(back_populates="images")
     variant: Mapped[ProductVariant | None] = relationship(back_populates="images")
@@ -424,7 +425,7 @@ class InventoryMovement(Base):
     reason: Mapped[str] = mapped_column(String(500), default="")
     reference: Mapped[str] = mapped_column(String(120), default="")
     created_by: Mapped[str] = mapped_column(String(100), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class Order(Base, TimestampMixin):
@@ -458,7 +459,7 @@ class OrderItem(Base):
     )
     quantity: Mapped[int] = mapped_column(Integer)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
     order: Mapped[Order] = relationship(back_populates="items")
 
@@ -505,8 +506,8 @@ class Quote(Base, TimestampMixin):
     terms: Mapped[str] = mapped_column(Text, default="")
     decision_note: Mapped[str] = mapped_column(Text, default="")
     created_by: Mapped[str] = mapped_column(String(100), default="")
-    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    responded_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
     items: Mapped[list["QuoteItem"]] = relationship(
         back_populates="quote", cascade="all, delete-orphan"
@@ -532,7 +533,7 @@ class QuoteItem(Base):
     quantity: Mapped[int] = mapped_column(Integer)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     line_total: Mapped[Decimal] = mapped_column(Numeric(14, 2))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
     quote: Mapped[Quote] = relationship(back_populates="items")
 
@@ -556,7 +557,7 @@ class QuoteVersion(Base):
     terms: Mapped[str] = mapped_column(Text, default="")
     items_snapshot: Mapped[list] = mapped_column(JSON, default=list)
     created_by: Mapped[str] = mapped_column(String(100), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
     quote: Mapped[Quote] = relationship(back_populates="versions")
 
@@ -571,7 +572,7 @@ class Shipping(Base, TimestampMixin):
     order_id: Mapped[str] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"), index=True)
     carrier: Mapped[str] = mapped_column(String(100), default="")
     tracking_number: Mapped[str] = mapped_column(String(100), default="")
-    shipped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    shipped_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     shipping_status: Mapped[str] = mapped_column(String(30), default="pending")
     notes: Mapped[str] = mapped_column(Text, default="")
     created_by: Mapped[str] = mapped_column(String(100), default="")
@@ -626,7 +627,7 @@ class AuditLog(Base):
     entity_type: Mapped[str] = mapped_column(String(80))
     entity_id: Mapped[str] = mapped_column(String(36))
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class IdempotencyRecord(Base):
@@ -641,7 +642,7 @@ class IdempotencyRecord(Base):
     key: Mapped[str] = mapped_column(String(128))
     request_hash: Mapped[str] = mapped_column(String(64))
     response_payload: Mapped[dict] = mapped_column(JSON)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class AgentConversation(Base, TimestampMixin):
@@ -671,7 +672,7 @@ class AgentMessage(Base):
     content: Mapped[str] = mapped_column(Text, default="")
     event_type: Mapped[str] = mapped_column(String(50), default="message")
     event_payload: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class AgentExecution(Base, TimestampMixin):
@@ -722,5 +723,5 @@ class AgentApproval(Base, TimestampMixin):
     )
     status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
     summary: Mapped[str] = mapped_column(String(500), default="")
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    decided_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)

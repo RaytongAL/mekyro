@@ -45,6 +45,7 @@ def test_api_key_lifecycle_reveals_secret_once_and_requires_disable_before_revok
     assert item["key_prefix"] == created["key_prefix"]
     assert "key" not in item
     assert "key_hash" not in item
+    assert item["created_at"].endswith(("Z", "+00:00"))
 
     enabled_delete = client.delete(
         f"/api/v1/internal/api-keys/{created['id']}",
